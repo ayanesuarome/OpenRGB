@@ -1,0 +1,282 @@
+/*---------------------------------------------------------*\
+| RGBController_MachinistARGB.cpp                           |
+|                                                           |
+|   RGBController for MACHINIST F-X9D ARGB Controller       |
+|                                                           |
+|   OpenRGB Team                                            |
+|                                                           |
+|   This file is part of the OpenRGB project                |
+|   SPDX-License-Identifier: GPL-2.0-or-later               |
+\*---------------------------------------------------------*/
+
+#include "RGBController_MachinistARGB.h"
+
+/**------------------------------------------------------------------*\
+    @name Machinist F-X9D ARGB
+    @category Motherboard
+    @type  USB
+    @save  :x:
+    @direct :white_check_mark:
+    @effects :white_check_mark:
+    @detectors DetectMachinistARGBControllers
+    @comment Winbond LED Dongle ARGB Controller for Machinist F-X9D
+\*--------------------------------------------------------------------*/
+
+RGBController_MachinistARGB::RGBController_MachinistARGB(MachinistARGBController* controller_ptr)
+{
+    controller                  = controller_ptr;
+
+    name                        = "Machinist F-X9D ARGB Controller";
+    vendor                      = "Machinist";
+    type                        = DEVICE_TYPE_MOTHERBOARD;
+    description                 = "Machinist F-X9D ARGB Controller";
+    location                    = controller->GetDeviceLocation();
+    serial                      = controller->GetSerialString();
+
+    mode Direct;
+    Direct.name                 = "Direct";
+    Direct.value                = 0;
+    Direct.flags                = MODE_FLAG_HAS_PER_LED_COLOR | MODE_FLAG_HAS_BRIGHTNESS;
+    Direct.color_mode           = MODE_COLORS_PER_LED;
+    Direct.brightness_min       = 0x00;
+    Direct.brightness_max       = 0xFF;
+    Direct.brightness           = 0xFF;
+    modes.push_back(Direct);
+
+    mode Static;
+    Static.name                 = "Static";
+    Static.value                = 1;
+    Static.flags                = MODE_FLAG_HAS_PER_LED_COLOR | MODE_FLAG_HAS_BRIGHTNESS;
+    Static.color_mode           = MODE_COLORS_PER_LED;
+    Static.brightness_min       = 0x00;
+    Static.brightness_max       = 0xFF;
+    Static.brightness           = 0xFF;
+    modes.push_back(Static);
+
+    mode Breathing;
+    Breathing.name              = "Breathing";
+    Breathing.value             = 2;
+    Breathing.flags             = MODE_FLAG_HAS_PER_LED_COLOR | MODE_FLAG_HAS_SPEED | MODE_FLAG_HAS_BRIGHTNESS;
+    Breathing.color_mode        = MODE_COLORS_PER_LED;
+    Breathing.speed_min         = 0x00;
+    Breathing.speed_max         = 0xFF;
+    Breathing.speed             = 0x7F;
+    Breathing.brightness_min    = 0x00;
+    Breathing.brightness_max    = 0xFF;
+    Breathing.brightness        = 0xFF;
+    modes.push_back(Breathing);
+
+    mode Wave;
+    Wave.name                   = "Wave";
+    Wave.value                  = 3;
+    Wave.flags                  = MODE_FLAG_HAS_PER_LED_COLOR | MODE_FLAG_HAS_SPEED | MODE_FLAG_HAS_BRIGHTNESS;
+    Wave.color_mode             = MODE_COLORS_PER_LED;
+    Wave.speed_min              = 0x00;
+    Wave.speed_max              = 0xFF;
+    Wave.speed                  = 0x7F;
+    Wave.brightness_min         = 0x00;
+    Wave.brightness_max         = 0xFF;
+    Wave.brightness             = 0xFF;
+    modes.push_back(Wave);
+
+    mode Cycling;
+    Cycling.name                = "Cycling";
+    Cycling.value               = 4;
+    Cycling.flags               = MODE_FLAG_HAS_PER_LED_COLOR | MODE_FLAG_HAS_SPEED | MODE_FLAG_HAS_BRIGHTNESS;
+    Cycling.color_mode          = MODE_COLORS_PER_LED;
+    Cycling.speed_min           = 0x00;
+    Cycling.speed_max           = 0xFF;
+    Cycling.speed               = 0x7F;
+    Cycling.brightness_min      = 0x00;
+    Cycling.brightness_max      = 0xFF;
+    Cycling.brightness          = 0xFF;
+    modes.push_back(Cycling);
+
+    mode Rainbow;
+    Rainbow.name                = "Rainbow";
+    Rainbow.value               = 5;
+    Rainbow.flags               = MODE_FLAG_HAS_PER_LED_COLOR | MODE_FLAG_HAS_SPEED | MODE_FLAG_HAS_BRIGHTNESS;
+    Rainbow.color_mode          = MODE_COLORS_PER_LED;
+    Rainbow.speed_min           = 0x00;
+    Rainbow.speed_max           = 0xFF;
+    Rainbow.speed               = 0x7F;
+    Rainbow.brightness_min      = 0x00;
+    Rainbow.brightness_max      = 0xFF;
+    Rainbow.brightness          = 0xFF;
+    modes.push_back(Rainbow);
+
+    mode Random;
+    Random.name                 = "Random";
+    Random.value                = 6;
+    Random.flags                = MODE_FLAG_HAS_PER_LED_COLOR | MODE_FLAG_HAS_SPEED | MODE_FLAG_HAS_BRIGHTNESS;
+    Random.color_mode           = MODE_COLORS_PER_LED;
+    Random.speed_min            = 0x00;
+    Random.speed_max            = 0xFF;
+    Random.speed                = 0x7F;
+    Random.brightness_min       = 0x00;
+    Random.brightness_max       = 0xFF;
+    Random.brightness           = 0xFF;
+    modes.push_back(Random);
+
+    mode Spring;
+    Spring.name                 = "Spring";
+    Spring.value                = 7;
+    Spring.flags                = MODE_FLAG_HAS_PER_LED_COLOR | MODE_FLAG_HAS_SPEED | MODE_FLAG_HAS_BRIGHTNESS;
+    Spring.color_mode           = MODE_COLORS_PER_LED;
+    Spring.speed_min            = 0x00;
+    Spring.speed_max            = 0xFF;
+    Spring.speed                = 0x7F;
+    Spring.brightness_min       = 0x00;
+    Spring.brightness_max       = 0xFF;
+    Spring.brightness           = 0xFF;
+    modes.push_back(Spring);
+
+    mode Water;
+    Water.name                  = "Water";
+    Water.value                 = 8;
+    Water.flags                 = MODE_FLAG_HAS_PER_LED_COLOR | MODE_FLAG_HAS_SPEED | MODE_FLAG_HAS_BRIGHTNESS;
+    Water.color_mode            = MODE_COLORS_PER_LED;
+    Water.speed_min             = 0x00;
+    Water.speed_max             = 0xFF;
+    Water.speed                 = 0x7F;
+    Water.brightness_min        = 0x00;
+    Water.brightness_max        = 0xFF;
+    Water.brightness            = 0xFF;
+    modes.push_back(Water);
+
+    mode Music;
+    Music.name                  = "Music";
+    Music.value                 = 9;
+    Music.flags                 = MODE_FLAG_HAS_PER_LED_COLOR | MODE_FLAG_HAS_BRIGHTNESS;
+    Music.color_mode            = MODE_COLORS_PER_LED;
+    Music.brightness_min        = 0x00;
+    Music.brightness_max        = 0xFF;
+    Music.brightness            = 0xFF;
+    modes.push_back(Music);
+
+    SetupZones();
+}
+
+RGBController_MachinistARGB::~RGBController_MachinistARGB()
+{
+    Shutdown();
+
+    delete controller;
+}
+
+void RGBController_MachinistARGB::SetupZones()
+{
+    zones.clear();
+    leds.clear();
+    colors.clear();
+
+    zone arbg_zone;
+    arbg_zone.name              = "ARGB Header 1";
+    arbg_zone.type              = ZONE_TYPE_LINEAR;
+    arbg_zone.leds_min          = 1;
+    arbg_zone.leds_max          = 1;
+    arbg_zone.leds_count        = 1;
+    zones.push_back(arbg_zone);
+
+    for(unsigned int led_idx = 0; led_idx < zones[0].leds_count; led_idx++)
+    {
+        led new_led;
+        new_led.name            = "LED " + std::to_string(led_idx + 1);
+        leds.push_back(new_led);
+    }
+
+    SetupColors();
+}
+
+void RGBController_MachinistARGB::DeviceUpdateLEDs()
+{
+    if(colors.size() > 0)
+    {
+        unsigned char red       = RGBGetRValue(colors[0]);
+        unsigned char green     = RGBGetGValue(colors[0]);
+        unsigned char blue      = RGBGetBValue(colors[0]);
+
+        switch(active_mode)
+        {
+            case 0:  // Direct
+            case 1:  // Static
+            {
+                unsigned char brightness = static_cast<unsigned char>(modes[active_mode].brightness);
+                controller->SendColor(red, green, blue, brightness);
+                break;
+            }
+            case 2:  // Breathing
+            {
+                unsigned char speed = static_cast<unsigned char>(modes[active_mode].speed);
+                unsigned char brightness = static_cast<unsigned char>(modes[active_mode].brightness);
+                controller->SendBreathing(red, green, blue, speed, brightness);
+                break;
+            }
+            case 3:  // Wave (0x17)
+            {
+                unsigned char speed = static_cast<unsigned char>(modes[active_mode].speed);
+                unsigned char brightness = static_cast<unsigned char>(modes[active_mode].brightness);
+                controller->SendWave(red, green, blue, speed, brightness);
+                break;
+            }
+            case 4:  // Cycling (0x14)
+            {
+                unsigned char speed = static_cast<unsigned char>(modes[active_mode].speed);
+                unsigned char brightness = static_cast<unsigned char>(modes[active_mode].brightness);
+                controller->SendCycling(red, green, blue, speed, brightness);
+                break;
+            }
+            case 5:  // Rainbow (0x1A)
+            {
+                unsigned char speed = static_cast<unsigned char>(modes[active_mode].speed);
+                unsigned char brightness = static_cast<unsigned char>(modes[active_mode].brightness);
+                controller->SendRainbow(red, green, blue, speed, brightness);
+                break;
+            }
+            case 6:  // Random (0x15)
+            {
+                unsigned char speed = static_cast<unsigned char>(modes[active_mode].speed);
+                unsigned char brightness = static_cast<unsigned char>(modes[active_mode].brightness);
+                controller->SendRandom(red, green, blue, speed, brightness);
+                break;
+            }
+            case 7:  // Spring (0x18)
+            {
+                unsigned char speed = static_cast<unsigned char>(modes[active_mode].speed);
+                unsigned char brightness = static_cast<unsigned char>(modes[active_mode].brightness);
+                controller->SendSpring(red, green, blue, speed, brightness);
+                break;
+            }
+            case 8:  // Water (0x19)
+            {
+                unsigned char speed = static_cast<unsigned char>(modes[active_mode].speed);
+                unsigned char brightness = static_cast<unsigned char>(modes[active_mode].brightness);
+                controller->SendWater(red, green, blue, speed, brightness);
+                break;
+            }
+            case 9: // Music (0x16)
+            {
+                unsigned char brightness = static_cast<unsigned char>(modes[active_mode].brightness);
+                controller->SendMusic(red, green, blue, brightness);
+                break;
+            }
+            default:
+                break;
+        }
+    }
+}
+
+void RGBController_MachinistARGB::DeviceUpdateZoneLEDs(int /*zone*/)
+{
+    DeviceUpdateLEDs();
+}
+
+void RGBController_MachinistARGB::DeviceUpdateSingleLED(int /*led*/)
+{
+    DeviceUpdateLEDs();
+}
+
+void RGBController_MachinistARGB::DeviceUpdateMode()
+{
+    DeviceUpdateLEDs();
+}
