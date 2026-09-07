@@ -121,12 +121,12 @@ void MachinistARGBController::SendBreathing(unsigned char red, unsigned char gre
     SendAnimatedEffect(0x12, red, green, blue, speed, brightness);
 }
 
-void MachinistARGBController::SendWave(unsigned char red, unsigned char green, unsigned char blue, unsigned char speed, unsigned char brightness)
+void MachinistARGBController::SendRainbowWave(unsigned char red, unsigned char green, unsigned char blue, unsigned char speed, unsigned char brightness)
 {
     SendAnimatedEffect(0x17, red, green, blue, speed, brightness);
 }
 
-void MachinistARGBController::SendCycling(unsigned char red, unsigned char green, unsigned char blue, unsigned char speed, unsigned char brightness)
+void MachinistARGBController::SendSpectrumCycle(unsigned char red, unsigned char green, unsigned char blue, unsigned char speed, unsigned char brightness)
 {
     SendAnimatedEffect(0x14, red, green, blue, speed, brightness);
 }

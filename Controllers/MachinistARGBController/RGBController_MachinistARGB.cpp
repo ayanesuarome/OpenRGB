@@ -216,14 +216,14 @@ void RGBController_MachinistARGB::DeviceUpdateLEDs()
             {
                 unsigned char speed = static_cast<unsigned char>(modes[active_mode].speed);
                 unsigned char brightness = static_cast<unsigned char>(modes[active_mode].brightness);
-                controller->SendWave(red, green, blue, speed, brightness);
+                controller->SendRainbowWave(red, green, blue, speed, brightness);
                 break;
             }
             case 4:  // Spectrum Cycle (0x14)
             {
                 unsigned char speed = static_cast<unsigned char>(modes[active_mode].speed);
                 unsigned char brightness = static_cast<unsigned char>(modes[active_mode].brightness);
-                controller->SendCycling(red, green, blue, speed, brightness);
+                controller->SendSpectrumCycle(red, green, blue, speed, brightness);
                 break;
             }
             case 5:  // Rainbow (0x1A)
