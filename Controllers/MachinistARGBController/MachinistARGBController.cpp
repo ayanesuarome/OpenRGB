@@ -197,6 +197,14 @@ void MachinistARGBController::StartMusicMode(unsigned char red, unsigned char gr
         LOG_DEBUG("[MachinistARGB] Audio capture initialized successfully");
     }
 
+    // Arm the device's Music effect (0x16) the same way every other effect is
+    // selected. The USB capture used to reverse-engineer 0xC0 started recording
+    // after Music mode was already active on the vendor app, so this initial
+    // packet never showed up there - but without it the firmware ignores the
+    // 0xC0 audio stream entirely (confirmed: matches the vendor app's behavior
+    // of flashing blue when Music is selected).
+    SendMusic(red, green, blue, brightness);
+
     music_mode_active = true;
 
     // Lambda for music update thread
