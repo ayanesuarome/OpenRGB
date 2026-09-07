@@ -15,8 +15,6 @@ QT +=                                                                           
 # Set compiler to use C++17 to make std::filesystem available                                   #
 #-----------------------------------------------------------------------------------------------#
 CONFIG +=   c++17                                                                               \
-            lrelease                                                                            \
-            embed_translations                                                                  \
             silent                                                                              \
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
@@ -549,6 +547,15 @@ contains(QMAKE_PLATFORM, linux) {
                 PKGCONFIG += hidapi
             }
         }
+    }
+
+    #-------------------------------------------------------------------------------------------#
+    # Machinist Music Mode audio capture (optional)                                            #
+    #   Requires libpulse-simple for audio input stream                                        #
+    #-------------------------------------------------------------------------------------------#
+    packagesExist(libpulse-simple) {
+        PKGCONFIG += libpulse-simple
+        DEFINES   += MACHINIST_MUSIC_AUDIO_ENABLED=1
     }
 
     SOURCES += $$CONTROLLER_CPP_LINUX

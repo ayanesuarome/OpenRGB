@@ -257,7 +257,8 @@ void RGBController_MachinistARGB::DeviceUpdateLEDs()
             case 9: // Music (0x16)
             {
                 unsigned char brightness = static_cast<unsigned char>(modes[active_mode].brightness);
-                controller->SendMusic(red, green, blue, brightness);
+                // Start audio-reactive music mode with audio capture
+                controller->StartMusicMode(red, green, blue, brightness);
                 break;
             }
             default:
@@ -278,5 +279,20 @@ void RGBController_MachinistARGB::DeviceUpdateSingleLED(int /*led*/)
 
 void RGBController_MachinistARGB::DeviceUpdateMode()
 {
+    /*
+     * Handle mode transitions, especially for Music mode
+     * which requires audio capture to be started/stopped
+     */
+
+    // If switching away from Music mode, stop audio capture
+    if (previous_mode == 9 && active_mode != 9)
+    {
+        controller->StopMusicMode();
+    }
+
+    // If switching to Music mode, DeviceUpdateLEDs will handle the startup
     DeviceUpdateLEDs();
+
+    // Update previous mode tracker
+    previous_mode = active_mode;
 }
