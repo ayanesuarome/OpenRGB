@@ -41,8 +41,8 @@ All commands use an 8-byte HID interrupt transfer format:
 |-----------|-----------|------|-----------|---|
 | 0x11 | Static | Direct Color | Brightness only | ✅ Implemented |
 | 0x12 | Breathing | Animation | Speed, Brightness | ✅ Implemented |
-| 0x17 | Wave | Animation | Speed, Brightness | ✅ Implemented (matches capture order) |
-| 0x14 | Cycling | Animation | Speed, Brightness | ✅ Implemented (matches capture order) |
+| 0x17 | Rainbow Wave | Animation | Speed, Brightness | ✅ Implemented (standardized naming) |
+| 0x14 | Spectrum Cycle | Animation | Speed, Brightness | ✅ Implemented (standardized naming) |
 | 0x1A | Rainbow | Animation | Speed, Brightness | ✅ Implemented (matches capture order) |
 | 0x15 | Random | Animation | Speed, Brightness | ✅ Implemented (matches capture order) |
 | 0x18 | Spring | Animation | Speed, Brightness | ✅ Implemented (matches capture order) |
@@ -52,12 +52,13 @@ All commands use an 8-byte HID interrupt transfer format:
 **Mapping methodology:** `machinist_all_options.txt` contains a single sample per mode
 (except Breathing, which has 37 samples sweeping speed). Modes were mapped by matching
 the capture's packet order to the tested mode order from the capture notes:
-Static, Breathing, Strobe, Wave, Cycling, Rainbow, Random, Spring, Water, Music.
+Static, Breathing, Strobe, Rainbow Wave, Spectrum Cycle, Rainbow, Random, Spring, Water, Music.
 
-**Strobe removed:** The vendor's own saved profile format (`WAVE.orp`) independently
-stores both `Breathing` and `Strobe` under mode ID `0x12`, matching the USB capture.
-Since the vendor app confirmed identical behavior on hardware, `Strobe` was removed
-as a redundant duplicate of `Breathing` rather than kept as an alias.
+**Flashing/Strobe verification:** The vendor's saved profile format (`WAVE.orp`) stores
+both `Breathing` and `Strobe` under mode ID `0x12`, matching USB captures.
+Because both labels map to the same command and behavior on hardware, there is no
+separate firmware-level Flashing effect to expose. `Strobe` remains omitted as a
+duplicate of `Breathing` rather than implemented as an alias.
 
 ### Example Packets
 
@@ -73,7 +74,7 @@ as a redundant duplicate of `Breathing` rather than kept as an alias.
 03 02 12 FF FF FF FF 7F
 ```
 
-**Wave Green (fast, half brightness)**
+**Spectrum Cycle Green (fast, half brightness)**
 ```
 03 01 14 00 FF 00 80 10
 03 02 14 00 FF 00 80 10
@@ -113,13 +114,13 @@ Mode 2: Breathing
   - Brightness slider (0x00-0xFF)
   - Pulsing fade in/out animation
 
-Mode 3: Wave
+Mode 3: Rainbow Wave
   - Per-LED color control
   - Speed slider (0x00-0xFF, inverted on device)
   - Brightness slider (0x00-0xFF)
   - Wave sweep animation
 
-Mode 4: Cycling
+Mode 4: Spectrum Cycle
   - Per-LED color control
   - Speed slider (0x00-0xFF, inverted on device)
   - Brightness slider (0x00-0xFF)

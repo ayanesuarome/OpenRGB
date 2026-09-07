@@ -66,34 +66,34 @@ RGBController_MachinistARGB::RGBController_MachinistARGB(MachinistARGBController
     Breathing.brightness        = 0xFF;
     modes.push_back(Breathing);
 
-    mode Wave;
-    Wave.name                   = "Wave";
-    Wave.value                  = 3;
-    Wave.flags                  = MODE_FLAG_HAS_PER_LED_COLOR | MODE_FLAG_HAS_SPEED | MODE_FLAG_HAS_BRIGHTNESS;
-    Wave.color_mode             = MODE_COLORS_PER_LED;
-    Wave.speed_min              = 0x00;
-    Wave.speed_max              = 0xFF;
-    Wave.speed                  = 0x7F;
-    Wave.brightness_min         = 0x00;
-    Wave.brightness_max         = 0xFF;
-    Wave.brightness             = 0xFF;
-    modes.push_back(Wave);
+    mode RainbowWave;
+    RainbowWave.name            = "Rainbow Wave"; // Staggered moving rainbow pattern.
+    RainbowWave.value           = 3;
+    RainbowWave.flags           = MODE_FLAG_HAS_PER_LED_COLOR | MODE_FLAG_HAS_SPEED | MODE_FLAG_HAS_BRIGHTNESS;
+    RainbowWave.color_mode      = MODE_COLORS_PER_LED;
+    RainbowWave.speed_min       = 0x00;
+    RainbowWave.speed_max       = 0xFF;
+    RainbowWave.speed           = 0x7F;
+    RainbowWave.brightness_min  = 0x00;
+    RainbowWave.brightness_max  = 0xFF;
+    RainbowWave.brightness      = 0xFF;
+    modes.push_back(RainbowWave);
 
-    mode Cycling;
-    Cycling.name                = "Cycling";
-    Cycling.value               = 4;
-    Cycling.flags               = MODE_FLAG_HAS_PER_LED_COLOR | MODE_FLAG_HAS_SPEED | MODE_FLAG_HAS_BRIGHTNESS;
-    Cycling.color_mode          = MODE_COLORS_PER_LED;
-    Cycling.speed_min           = 0x00;
-    Cycling.speed_max           = 0xFF;
-    Cycling.speed               = 0x7F;
-    Cycling.brightness_min      = 0x00;
-    Cycling.brightness_max      = 0xFF;
-    Cycling.brightness          = 0xFF;
-    modes.push_back(Cycling);
+    mode SpectrumCycle;
+    SpectrumCycle.name          = "Spectrum Cycle"; // Full-spectrum color cycle.
+    SpectrumCycle.value         = 4;
+    SpectrumCycle.flags         = MODE_FLAG_HAS_PER_LED_COLOR | MODE_FLAG_HAS_SPEED | MODE_FLAG_HAS_BRIGHTNESS;
+    SpectrumCycle.color_mode    = MODE_COLORS_PER_LED;
+    SpectrumCycle.speed_min     = 0x00;
+    SpectrumCycle.speed_max     = 0xFF;
+    SpectrumCycle.speed         = 0x7F;
+    SpectrumCycle.brightness_min= 0x00;
+    SpectrumCycle.brightness_max= 0xFF;
+    SpectrumCycle.brightness    = 0xFF;
+    modes.push_back(SpectrumCycle);
 
     mode Rainbow;
-    Rainbow.name                = "Rainbow";
+    Rainbow.name                = "Rainbow"; // Distinct from Rainbow Wave and Spectrum Cycle on this device.
     Rainbow.value               = 5;
     Rainbow.flags               = MODE_FLAG_HAS_PER_LED_COLOR | MODE_FLAG_HAS_SPEED | MODE_FLAG_HAS_BRIGHTNESS;
     Rainbow.color_mode          = MODE_COLORS_PER_LED;
@@ -106,7 +106,7 @@ RGBController_MachinistARGB::RGBController_MachinistARGB(MachinistARGBController
     modes.push_back(Rainbow);
 
     mode Random;
-    Random.name                 = "Random";
+    Random.name                 = "Random"; // Device-specific randomized animation.
     Random.value                = 6;
     Random.flags                = MODE_FLAG_HAS_PER_LED_COLOR | MODE_FLAG_HAS_SPEED | MODE_FLAG_HAS_BRIGHTNESS;
     Random.color_mode           = MODE_COLORS_PER_LED;
@@ -119,7 +119,7 @@ RGBController_MachinistARGB::RGBController_MachinistARGB(MachinistARGBController
     modes.push_back(Random);
 
     mode Spring;
-    Spring.name                 = "Spring";
+    Spring.name                 = "Spring"; // Device-specific spring-like pulse animation.
     Spring.value                = 7;
     Spring.flags                = MODE_FLAG_HAS_PER_LED_COLOR | MODE_FLAG_HAS_SPEED | MODE_FLAG_HAS_BRIGHTNESS;
     Spring.color_mode           = MODE_COLORS_PER_LED;
@@ -132,7 +132,7 @@ RGBController_MachinistARGB::RGBController_MachinistARGB(MachinistARGBController
     modes.push_back(Spring);
 
     mode Water;
-    Water.name                  = "Water";
+    Water.name                  = "Water"; // Device-specific flowing/ripple animation.
     Water.value                 = 8;
     Water.flags                 = MODE_FLAG_HAS_PER_LED_COLOR | MODE_FLAG_HAS_SPEED | MODE_FLAG_HAS_BRIGHTNESS;
     Water.color_mode            = MODE_COLORS_PER_LED;
@@ -145,7 +145,7 @@ RGBController_MachinistARGB::RGBController_MachinistARGB(MachinistARGBController
     modes.push_back(Water);
 
     mode Music;
-    Music.name                  = "Music";
+    Music.name                  = "Music"; // Audio-reactive device mode.
     Music.value                 = 9;
     Music.flags                 = MODE_FLAG_HAS_PER_LED_COLOR | MODE_FLAG_HAS_BRIGHTNESS;
     Music.color_mode            = MODE_COLORS_PER_LED;
@@ -212,14 +212,14 @@ void RGBController_MachinistARGB::DeviceUpdateLEDs()
                 controller->SendBreathing(red, green, blue, speed, brightness);
                 break;
             }
-            case 3:  // Wave (0x17)
+            case 3:  // Rainbow Wave (0x17)
             {
                 unsigned char speed = static_cast<unsigned char>(modes[active_mode].speed);
                 unsigned char brightness = static_cast<unsigned char>(modes[active_mode].brightness);
                 controller->SendWave(red, green, blue, speed, brightness);
                 break;
             }
-            case 4:  // Cycling (0x14)
+            case 4:  // Spectrum Cycle (0x14)
             {
                 unsigned char speed = static_cast<unsigned char>(modes[active_mode].speed);
                 unsigned char brightness = static_cast<unsigned char>(modes[active_mode].brightness);
