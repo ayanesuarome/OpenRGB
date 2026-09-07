@@ -28,48 +28,40 @@ bool MachinistAudioCapture::Initialize()
 
     int error;
 
-    // Connect to PulseAudio monitoring stream (loopback)
-    // This captures audio being played through speakers
-    pa_handle = pa_simple_new(
-        nullptr,                                    // Server
-        nullptr,                                    // Device
-        PA_STREAM_RECORD,                          // Direction (record/monitor)
-        "alsa_output.pci-0000_00_1f.3.analog-stereo.monitor",  // Monitor device
-        "OpenRGB Music Visualizer",                 // Application name
-        &ss,                                        // Sample specification
-        nullptr,                                    // Channel map
-        nullptr,                                    // Attributes
-        &error
-    );
+    // List of common monitor device names to try
+    const char* monitor_devices[] = {
+        nullptr,                                                    // Default device (tries default source)
+        "alsa_output.usb-0c76_USB_PnP_Audio_Device-00.analog-stereo.monitor",  // USB Audio monitor
+        "alsa_output.pci-0000_03_00.1.hdmi-stereo.monitor",        // HDMI monitor
+        "alsa_output.pci-0000_00_1f.3.analog-stereo.monitor",      // Typical Intel HDA monitor
+    };
 
-    if (!pa_handle)
+    // Try each device in order
+    for (size_t i = 0; i < sizeof(monitor_devices) / sizeof(monitor_devices[0]); i++)
     {
-        // Fallback: try default device if monitor device not found
         pa_handle = pa_simple_new(
-            nullptr, nullptr, PA_STREAM_RECORD,
-            nullptr, "OpenRGB Music Visualizer",
-            &ss, nullptr, nullptr, &error
+            nullptr,                                // Server (local)
+            monitor_devices[i],                     // Device name/index
+            PA_STREAM_RECORD,                       // Record direction
+            nullptr,                                // Application doesn't specify device name
+            "OpenRGB Music Visualizer",             // Application name
+            &ss,                                    // Sample specification
+            nullptr,                                // Channel map (default)
+            nullptr,                                // Attributes
+            &error
         );
+
+        if (pa_handle != nullptr)
+        {
+            // Success - start capture thread and return
+            running = true;
+            capture_thread = std::thread(&MachinistAudioCapture::CaptureThreadFunc, this);
+            return true;
+        }
     }
 
-    if (!pa_handle)
-    {
-        return false;
-    }
-
-    running = true;
-    capture_thread = std::thread(&MachinistAudioCapture::CaptureThreadFunc, this);
-    return true;
-}
-
-void MachinistAudioCapture::Stop()
-{
-    running = false;
-    if (capture_thread.joinable())
-    {
-        capture_thread.join();
-    }
-
+    // All attempts failed
+    return false;
     if (pa_handle)
     {
         pa_simple_free(pa_handle);
