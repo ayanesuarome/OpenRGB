@@ -205,7 +205,7 @@ void RGBController_MachinistARGB::DeviceUpdateLEDs()
                 controller->SendColor(red, green, blue, brightness);
                 break;
             }
-            case 2:  // Breathing
+            case 2:  // Breathing (0x12)
             {
                 unsigned char speed = static_cast<unsigned char>(modes[active_mode].speed);
                 unsigned char brightness = static_cast<unsigned char>(modes[active_mode].brightness);
