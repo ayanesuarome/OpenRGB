@@ -121,6 +121,27 @@ void MachinistAudioCapture::CaptureThreadFunc(std::shared_ptr<SharedState> state
 {
     float sample_buffer[512];
 
+    // Single-pole IIR low-pass filter states, persistent across reads, used to
+    // split the signal into bass/mid/treble bands (a real time-domain split
+    // by sample index would just be 3 near-identical chunks of the same
+    // waveform, not different frequencies).
+    const float sample_rate = 44100.0f;
+    auto lpf_alpha = [sample_rate](float cutoff_hz)
+    {
+        constexpr float pi = 3.14159265358979323846f;
+        float rc = 1.0f / (2.0f * pi * cutoff_hz);
+        float dt = 1.0f / sample_rate;
+        return dt / (rc + dt);
+    };
+    const float alpha_bass = lpf_alpha(200.0f);   // below ~200Hz
+    const float alpha_mid  = lpf_alpha(2000.0f);  // below ~2000Hz
+    float lpf_bass_state = 0.0f;
+    float lpf_mid_state  = 0.0f;
+
+    // Below this level, treat the signal as silence to avoid noise-floor
+    // jitter making the LEDs appear to "react" while paused/idle.
+    const float silence_gate = 0.01f;
+
     while (state->running && state->pa_handle)
     {
         int error;
@@ -131,25 +152,33 @@ void MachinistAudioCapture::CaptureThreadFunc(std::shared_ptr<SharedState> state
             continue;  // Skip on error, keep running
         }
 
-        // Simple frequency analysis (not true FFT, but good enough for visualization)
-        // Divide audio into 3 frequency bands (device protocol only carries 3 bytes)
-
         std::array<float, 3> band_energy = {0.0f, 0.0f, 0.0f};
-        int samples_per_band = 512 / 3;
 
         for (int i = 0; i < 512; i++)
         {
-            int band = i / samples_per_band;
-            if (band >= 3) band = 2;
+            float sample = sample_buffer[i];
 
-            // Calculate energy (RMS) for each frequency band
-            band_energy[band] += sample_buffer[i] * sample_buffer[i];
+            lpf_bass_state += alpha_bass * (sample - lpf_bass_state);
+            lpf_mid_state  += alpha_mid  * (sample - lpf_mid_state);
+
+            float bass_signal   = lpf_bass_state;
+            float mid_signal    = lpf_mid_state - lpf_bass_state;
+            float treble_signal = sample - lpf_mid_state;
+
+            band_energy[0] += bass_signal   * bass_signal;
+            band_energy[1] += mid_signal    * mid_signal;
+            band_energy[2] += treble_signal * treble_signal;
         }
 
         // Normalize and convert to 0-255 range
         for (int i = 0; i < 3; i++)
         {
-            band_energy[i] = std::sqrt(band_energy[i] / samples_per_band);
+            band_energy[i] = std::sqrt(band_energy[i] / 512);
+
+            if (band_energy[i] < silence_gate)
+            {
+                band_energy[i] = 0.0f;
+            }
 
             // Scale to 0-255 with some sensitivity adjustment
             uint8_t value = static_cast<uint8_t>(
