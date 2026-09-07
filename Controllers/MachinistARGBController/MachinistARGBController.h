@@ -14,8 +14,12 @@
 
 #include <string>
 #include <vector>
+#include <memory>
+#include <atomic>
+#include <thread>
 #include <hidapi/hidapi.h>
 #include "hidapi_wrapper.h"
+#include "MachinistAudioCapture.h"
 
 #define MACHINIST_VID 0x0416
 #define MACHINIST_PID 0x0125
@@ -40,14 +44,21 @@ public:
     void        SendSpring(unsigned char red, unsigned char green, unsigned char blue, unsigned char speed, unsigned char brightness);
     void        SendWater(unsigned char red, unsigned char green, unsigned char blue, unsigned char speed, unsigned char brightness);
     void        SendMusic(unsigned char red, unsigned char green, unsigned char blue, unsigned char brightness);
+    void        StartMusicMode(unsigned char red, unsigned char green, unsigned char blue, unsigned char brightness);
+    void        StopMusicMode();
+    void        UpdateMusicMode(unsigned char red, unsigned char green, unsigned char blue, unsigned char brightness);
 
 private:
     void        SendAnimatedEffect(unsigned char effect_id, unsigned char red, unsigned char green, unsigned char blue, unsigned char speed, unsigned char brightness);
+    void        SendMusicWithAudio(unsigned char channel, const std::array<uint8_t, 4>& fft_bins);
 
     hidapi_wrapper wrapper;
     hid_device* dev;
     std::string location;
     std::string serial;
+    std::unique_ptr<MachinistAudioCapture> audio_capture;
+    std::thread music_update_thread;
+    std::atomic<bool> music_mode_active;
 };
 
 #endif // MACHINISTARGBCONTROLLER_H

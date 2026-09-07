@@ -31,6 +31,7 @@ public:
 
 private:
     MachinistARGBController* controller;
+    int previous_mode = -1;  // Track previous mode to detect Music mode changes
 };
 
 #endif // RGBCONTROLLER_MACHINISTARGB_H
