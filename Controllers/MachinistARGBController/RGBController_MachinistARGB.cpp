@@ -147,11 +147,8 @@ RGBController_MachinistARGB::RGBController_MachinistARGB(MachinistARGBController
     mode Music;
     Music.name                  = "Music"; // Audio-reactive device mode.
     Music.value                 = 9;
-    Music.flags                 = MODE_FLAG_HAS_PER_LED_COLOR | MODE_FLAG_HAS_BRIGHTNESS;
+    Music.flags                 = MODE_FLAG_HAS_PER_LED_COLOR;
     Music.color_mode            = MODE_COLORS_PER_LED;
-    Music.brightness_min        = 0x00;
-    Music.brightness_max        = 0xFF;
-    Music.brightness            = 0xFF;
     modes.push_back(Music);
 
     SetupZones();
@@ -256,9 +253,8 @@ void RGBController_MachinistARGB::DeviceUpdateLEDs()
             }
             case 9: // Music (0x16)
             {
-                unsigned char brightness = static_cast<unsigned char>(modes[active_mode].brightness);
-                // Start audio-reactive music mode with audio capture
-                controller->StartMusicMode(red, green, blue, brightness);
+                // No brightness slider for this mode; always runs at max.
+                controller->StartMusicMode(red, green, blue, 0xFF);
                 break;
             }
             default:
