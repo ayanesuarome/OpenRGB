@@ -146,10 +146,12 @@ Mode 8: Water
   - Speed slider (0x00-0xFF, inverted on device)
   - Brightness slider (0x00-0xFF)
 
-Mode 9: Music
+Mode 9: Music (Audio-Reactive - Not Fully Implemented)
   - Per-LED color control
   - Brightness slider (0x00-0xFF)
-  - Device behavior may appear static depending on firmware/audio-reactive state
+  - **LIMITATION**: Requires audio capture and FFT transmission (0xC0 command) not yet implemented in OpenRGB
+  - Currently sends static 0x16 command like other animations
+  - Full audio-reactivity requires system audio capture and real-time FFT processing
 ```
 
 ## Device Detection
@@ -176,6 +178,10 @@ Mode naming and ID mapping were cross-checked against the saved profile file `WA
 3. **No polling**: Device doesn't report current state; all control is write-only
 4. **Channel parity**: Both channels must receive identical commands
 5. **Speed inversion**: Firmware interprets speed backwards (0=fast, 0xFF=slow)
+6. **Music mode (0x16)**: Audio-reactivity requires FFT/audio data transmission via 0xC0 command (not implemented)
+   - Current implementation sends static animation only
+   - Requires system audio capture and real-time FFT processing via separate 0xC0 protocol
+   - Fully documented but deferred for future implementation
 
 ## Future Work
 
@@ -183,3 +189,7 @@ Mode naming and ID mapping were cross-checked against the saved profile file `WA
 - Test on Windows platform compatibility
 - Explore any additional parameters in extended packet formats
 - Profile manager integration (if supported by firmware)
+- **Audio-Reactive Music Mode (0xC0)**: Implement system audio capture and FFT transmission for true music synchronization
+  - Requires integrating audio capture library (PortAudio, PulseAudio, etc.)
+  - Protocol: Send 0xC0 command with FFT data bytes 3-6 every ~100ms per channel
+  - Needs cross-platform audio input handling
