@@ -3,19 +3,52 @@
 #ifdef MACHINIST_MUSIC_AUDIO_ENABLED
 
 #include <cstring>
+#include <cstdio>
 #include <algorithm>
 #include <cmath>
+#include <vector>
+#include <string>
+#include "LogManager.h"
 
 MachinistAudioCapture::MachinistAudioCapture()
-    : pa_handle(nullptr), running(false)
+    : state(std::make_shared<SharedState>())
 {
-    fft_bins.fill(0);
-    audio_buffer.fill(0.0f);
 }
 
 MachinistAudioCapture::~MachinistAudioCapture()
 {
     Stop();
+}
+
+static std::string GetDefaultMonitorSource()
+{
+    // Ask PulseAudio/PipeWire for the current default sink, then use its monitor source.
+    // This works regardless of which audio device is active on the machine.
+    FILE* pipe = popen("pactl get-default-sink 2>/dev/null", "r");
+    if (!pipe)
+    {
+        return "";
+    }
+
+    char buf[256] = {0};
+    std::string sink_name;
+    if (fgets(buf, sizeof(buf), pipe))
+    {
+        sink_name = buf;
+        // Strip trailing newline
+        while (!sink_name.empty() && (sink_name.back() == '\n' || sink_name.back() == '\r'))
+        {
+            sink_name.pop_back();
+        }
+    }
+    pclose(pipe);
+
+    if (sink_name.empty())
+    {
+        return "";
+    }
+
+    return sink_name + ".monitor";
 }
 
 bool MachinistAudioCapture::Initialize()
@@ -26,59 +59,74 @@ bool MachinistAudioCapture::Initialize()
     ss.channels = 1;           // Mono capture
     ss.rate = 44100;           // 44.1kHz sample rate
 
-    int error;
+    int error = 0;
 
-    // List of common monitor device names to try
-    const char* monitor_devices[] = {
-        nullptr,                                                    // Default device (tries default source)
-        "alsa_output.usb-0c76_USB_PnP_Audio_Device-00.analog-stereo.monitor",  // USB Audio monitor
-        "alsa_output.pci-0000_03_00.1.hdmi-stereo.monitor",        // HDMI monitor
-        "alsa_output.pci-0000_00_1f.3.analog-stereo.monitor",      // Typical Intel HDA monitor
-    };
+    // Monitor sources capture what's being played (loopback), not the mic.
+    // Try the machine's actual default sink monitor first, then a few
+    // common fallback names, then nullptr as a last resort (default source).
+    std::string default_monitor = GetDefaultMonitorSource();
+
+    std::vector<const char*> monitor_devices;
+    if (!default_monitor.empty())
+    {
+        monitor_devices.push_back(default_monitor.c_str());
+    }
+    monitor_devices.push_back("alsa_output.usb-0c76_USB_PnP_Audio_Device-00.analog-stereo.monitor");
+    monitor_devices.push_back("alsa_output.pci-0000_03_00.1.hdmi-stereo.monitor");
+    monitor_devices.push_back("alsa_output.pci-0000_00_1f.3.analog-stereo.monitor");
+    monitor_devices.push_back(nullptr);
 
     // Try each device in order
-    for (size_t i = 0; i < sizeof(monitor_devices) / sizeof(monitor_devices[0]); i++)
+    for (size_t i = 0; i < monitor_devices.size(); i++)
     {
-        pa_handle = pa_simple_new(
+        pa_simple* handle = pa_simple_new(
             nullptr,                                // Server (local)
-            monitor_devices[i],                     // Device name/index
-            PA_STREAM_RECORD,                       // Record direction
-            nullptr,                                // Application doesn't specify device name
             "OpenRGB Music Visualizer",             // Application name
+            PA_STREAM_RECORD,                       // Record direction
+            monitor_devices[i],                     // Source name, or NULL for default
+            "Music mode capture",                   // Stream description
             &ss,                                    // Sample specification
             nullptr,                                // Channel map (default)
             nullptr,                                // Attributes
             &error
         );
 
-        if (pa_handle != nullptr)
+        if (handle != nullptr)
         {
-            // Success - start capture thread and return
-            running = true;
-            capture_thread = std::thread(&MachinistAudioCapture::CaptureThreadFunc, this);
+            LOG_DEBUG("[MachinistARGB] Audio capture opened on device: %s",
+                      monitor_devices[i] ? monitor_devices[i] : "(default)");
+            state->pa_handle = handle;
+            state->running = true;
+            std::thread(&MachinistAudioCapture::CaptureThreadFunc, state).detach();
             return true;
         }
+
+        LOG_DEBUG("[MachinistARGB] Failed to open device %s: %s",
+                  monitor_devices[i] ? monitor_devices[i] : "(default)", pa_strerror(error));
     }
 
     // All attempts failed
     return false;
-    if (pa_handle)
-    {
-        pa_simple_free(pa_handle);
-        pa_handle = nullptr;
-    }
 }
 
-void MachinistAudioCapture::CaptureThreadFunc()
+void MachinistAudioCapture::Stop()
+{
+    // Just flag the thread to stop and let it clean up on its own. pa_simple_read()
+    // can block indefinitely when the monitor source is idle/suspended, so we must
+    // never join() it here - doing so would hang the whole shutdown sequence.
+    state->running = false;
+}
+
+void MachinistAudioCapture::CaptureThreadFunc(std::shared_ptr<SharedState> state)
 {
     float sample_buffer[512];
 
-    while (running && pa_handle)
+    while (state->running && state->pa_handle)
     {
         int error;
 
         // Read audio samples from PulseAudio
-        if (pa_simple_read(pa_handle, sample_buffer, sizeof(sample_buffer), &error) < 0)
+        if (pa_simple_read(state->pa_handle, sample_buffer, sizeof(sample_buffer), &error) < 0)
         {
             continue;  // Skip on error, keep running
         }
@@ -108,17 +156,24 @@ void MachinistAudioCapture::CaptureThreadFunc()
                 std::min(255.0f, band_energy[i] * 500.0f)
             );
 
-            fft_bins[i] = value;
+            state->fft_bins[i] = value;
         }
 
         // Sleep briefly to avoid busy-waiting
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
+
+    if (state->pa_handle)
+    {
+        pa_simple_free(state->pa_handle);
+        state->pa_handle = nullptr;
+    }
 }
 
 std::array<uint8_t, 4> MachinistAudioCapture::GetFFTBins() const
 {
-    return fft_bins;
+    return { state->fft_bins[0].load(), state->fft_bins[1].load(),
+             state->fft_bins[2].load(), state->fft_bins[3].load() };
 }
 
 #endif  // MACHINIST_MUSIC_AUDIO_ENABLED

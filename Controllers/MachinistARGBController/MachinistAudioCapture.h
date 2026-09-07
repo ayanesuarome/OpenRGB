@@ -7,7 +7,10 @@
 
 #include <thread>
 #include <atomic>
-#include <pulse/pulseaudio.h>
+#include <vector>
+#include <memory>
+#include <pulse/simple.h>
+#include <pulse/error.h>
 
 class MachinistAudioCapture
 {
@@ -20,13 +23,19 @@ public:
     std::array<uint8_t, 4> GetFFTBins() const;
 
 private:
-    void CaptureThreadFunc();
+    // pa_simple_read() blocks indefinitely if the monitor source is idle/suspended.
+    // State is heap-allocated and shared with the detached capture thread so Stop()
+    // never has to join a thread that might be stuck in that blocking call.
+    struct SharedState
+    {
+        std::atomic<bool>              running{false};
+        pa_simple*                     pa_handle = nullptr;
+        std::array<std::atomic<uint8_t>, 4> fft_bins{};
+    };
 
-    pa_simple*                  pa_handle;
-    std::thread                 capture_thread;
-    std::atomic<bool>           running;
-    std::array<uint8_t, 4>      fft_bins;
-    std::array<float, 512>      audio_buffer;
+    static void CaptureThreadFunc(std::shared_ptr<SharedState> state);
+
+    std::shared_ptr<SharedState> state;
 };
 
 #else
