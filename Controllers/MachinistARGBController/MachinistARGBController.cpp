@@ -301,10 +301,13 @@ void MachinistARGBController::UpdateMusicMode(unsigned char red, unsigned char g
     SendMusic(red, green, blue, brightness);
 }
 
-void MachinistARGBController::SendMusicWithAudio(unsigned char channel, const std::array<uint8_t, 4>& fft_bins)
+void MachinistARGBController::SendMusicWithAudio(unsigned char channel, const std::array<uint8_t, 3>& fft_bins)
 {
     /*
      * Send audio-reactive data via 0xC0 protocol
+     *
+     * Verified byte-for-byte against USB capture (machinist_music_option.pcapng):
+     * every 0xC0 frame observed is exactly 8 bytes, e.g. 01 c0 01 4a 4a 49 01 00
      *
      * Packet structure:
      * [0] = 0x01           Report ID (different from normal 0x03)
@@ -313,16 +316,14 @@ void MachinistARGBController::SendMusicWithAudio(unsigned char channel, const st
      * [3] = FFT_BIN_0      Bass frequencies (0x00-0xFF)
      * [4] = FFT_BIN_1      Mid frequencies (0x00-0xFF)
      * [5] = FFT_BIN_2      Treble frequencies (0x00-0xFF)
-     * [6] = FFT_BIN_3      High frequencies (0x00-0xFF)
-     * [7] = 0x01           Fixed parameter
-     * [8] = 0x00           Fixed parameter
-     * [9-63] = 0x00        Padding
+     * [6] = 0x01           Fixed parameter
+     * [7] = 0x00           Fixed parameter
      */
 
     if (dev == nullptr || !audio_capture)
         return;
 
-    unsigned char buf[64];
+    unsigned char buf[8];
     memset(buf, 0, sizeof(buf));
 
     buf[0] = 0x01;              // Report ID (0x01 for audio command)
@@ -331,11 +332,10 @@ void MachinistARGBController::SendMusicWithAudio(unsigned char channel, const st
     buf[3] = fft_bins[0];       // Bass
     buf[4] = fft_bins[1];       // Midrange
     buf[5] = fft_bins[2];       // Treble
-    buf[6] = fft_bins[3];       // High frequency
-    buf[7] = 0x01;              // Fixed parameter
-    buf[8] = 0x00;              // Fixed parameter
+    buf[6] = 0x01;              // Fixed parameter
+    buf[7] = 0x00;              // Fixed parameter
 
-    wrapper.hid_write(dev, buf, 64);
+    wrapper.hid_write(dev, buf, sizeof(buf));
 }
 
 
