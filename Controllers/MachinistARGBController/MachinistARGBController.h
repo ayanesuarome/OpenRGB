@@ -51,7 +51,7 @@ public:
 
 private:
     void        SendAnimatedEffect(unsigned char effect_id, unsigned char red, unsigned char green, unsigned char blue, unsigned char speed, unsigned char brightness);
-    void        SendMusicWithAudio(unsigned char channel, const std::array<uint8_t, 4>& fft_bins);
+    void        SendMusicWithAudio(unsigned char channel, const std::array<uint8_t, 3>& fft_bins);
 
     hidapi_wrapper wrapper;
     hid_device* dev;

@@ -20,7 +20,7 @@ public:
 
     bool Initialize();
     void Stop();
-    std::array<uint8_t, 4> GetFFTBins() const;
+    std::array<uint8_t, 3> GetFFTBins() const;
 
 private:
     // pa_simple_read() blocks indefinitely if the monitor source is idle/suspended.
@@ -30,7 +30,7 @@ private:
     {
         std::atomic<bool>              running{false};
         pa_simple*                     pa_handle = nullptr;
-        std::array<std::atomic<uint8_t>, 4> fft_bins{};
+        std::array<std::atomic<uint8_t>, 3> fft_bins{};
     };
 
     static void CaptureThreadFunc(std::shared_ptr<SharedState> state);
@@ -48,7 +48,7 @@ public:
     ~MachinistAudioCapture() {}
     bool Initialize() { return false; }
     void Stop() {}
-    std::array<uint8_t, 4> GetFFTBins() const { return {0, 0, 0, 0}; }
+    std::array<uint8_t, 3> GetFFTBins() const { return {0, 0, 0}; }
 };
 
 #endif  // MACHINIST_MUSIC_AUDIO_ENABLED

@@ -132,22 +132,22 @@ void MachinistAudioCapture::CaptureThreadFunc(std::shared_ptr<SharedState> state
         }
 
         // Simple frequency analysis (not true FFT, but good enough for visualization)
-        // Divide audio into 4 frequency bands
+        // Divide audio into 3 frequency bands (device protocol only carries 3 bytes)
 
-        std::array<float, 4> band_energy = {0.0f, 0.0f, 0.0f, 0.0f};
-        int samples_per_band = 512 / 4;
+        std::array<float, 3> band_energy = {0.0f, 0.0f, 0.0f};
+        int samples_per_band = 512 / 3;
 
         for (int i = 0; i < 512; i++)
         {
             int band = i / samples_per_band;
-            if (band >= 4) band = 3;
+            if (band >= 3) band = 2;
 
             // Calculate energy (RMS) for each frequency band
             band_energy[band] += sample_buffer[i] * sample_buffer[i];
         }
 
         // Normalize and convert to 0-255 range
-        for (int i = 0; i < 4; i++)
+        for (int i = 0; i < 3; i++)
         {
             band_energy[i] = std::sqrt(band_energy[i] / samples_per_band);
 
@@ -170,10 +170,10 @@ void MachinistAudioCapture::CaptureThreadFunc(std::shared_ptr<SharedState> state
     }
 }
 
-std::array<uint8_t, 4> MachinistAudioCapture::GetFFTBins() const
+std::array<uint8_t, 3> MachinistAudioCapture::GetFFTBins() const
 {
     return { state->fft_bins[0].load(), state->fft_bins[1].load(),
-             state->fft_bins[2].load(), state->fft_bins[3].load() };
+             state->fft_bins[2].load() };
 }
 
 #endif  // MACHINIST_MUSIC_AUDIO_ENABLED
