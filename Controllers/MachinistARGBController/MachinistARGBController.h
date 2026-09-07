@@ -17,6 +17,7 @@
 #include <memory>
 #include <atomic>
 #include <thread>
+#include <mutex>
 #include <hidapi/hidapi.h>
 #include "hidapi_wrapper.h"
 #include "MachinistAudioCapture.h"
@@ -59,6 +60,9 @@ private:
     std::unique_ptr<MachinistAudioCapture> audio_capture;
     std::thread music_update_thread;
     std::atomic<bool> music_mode_active;
+    // DeviceUpdateLEDs() can be called concurrently from multiple threads;
+    // this serializes access to audio_capture/music_update_thread.
+    std::mutex music_mode_mutex;
 };
 
 #endif // MACHINISTARGBCONTROLLER_H

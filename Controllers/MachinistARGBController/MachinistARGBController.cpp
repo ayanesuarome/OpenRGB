@@ -172,6 +172,11 @@ void MachinistARGBController::StartMusicMode(unsigned char red, unsigned char gr
      * 3. LED color set to given parameters
      */
 
+    // DeviceUpdateLEDs() can be invoked concurrently (e.g. by a background
+    // refresh thread), so serialize access to avoid racing on audio_capture
+    // and music_update_thread, which could otherwise self-deadlock.
+    std::lock_guard<std::mutex> lock(music_mode_mutex);
+
     if (music_mode_active)
     {
         // Already running
@@ -258,6 +263,8 @@ void MachinistARGBController::StartMusicMode(unsigned char red, unsigned char gr
 
 void MachinistARGBController::StopMusicMode()
 {
+    std::lock_guard<std::mutex> lock(music_mode_mutex);
+
     if (!music_mode_active)
     {
         return;
