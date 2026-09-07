@@ -33,8 +33,8 @@ public:
 
     void        SendColor(unsigned char red, unsigned char green, unsigned char blue, unsigned char brightness);
     void        SendBreathing(unsigned char red, unsigned char green, unsigned char blue, unsigned char speed, unsigned char brightness);
-    void        SendWave(unsigned char red, unsigned char green, unsigned char blue, unsigned char speed, unsigned char brightness);
-    void        SendCycling(unsigned char red, unsigned char green, unsigned char blue, unsigned char speed, unsigned char brightness);
+    void        SendRainbowWave(unsigned char red, unsigned char green, unsigned char blue, unsigned char speed, unsigned char brightness);
+    void        SendSpectrumCycle(unsigned char red, unsigned char green, unsigned char blue, unsigned char speed, unsigned char brightness);
     void        SendRainbow(unsigned char red, unsigned char green, unsigned char blue, unsigned char speed, unsigned char brightness);
     void        SendRandom(unsigned char red, unsigned char green, unsigned char blue, unsigned char speed, unsigned char brightness);
     void        SendSpring(unsigned char red, unsigned char green, unsigned char blue, unsigned char speed, unsigned char brightness);
