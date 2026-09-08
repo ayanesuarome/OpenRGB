@@ -12,7 +12,7 @@
 #include "DetectionManager.h"
 #include "MachinistARGBController.h"
 #include "RGBController_MachinistARGB.h"
-#include <hidapi/hidapi.h>
+#include <hidapi.h>
 
 DetectedControllers DetectMachinistARGBControllers(hidapi_wrapper wrapper, hid_device_info* info, const std::string& /*name*/)
 {
