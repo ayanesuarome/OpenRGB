@@ -1,3 +1,14 @@
+/*---------------------------------------------------------*\
+| MachinistAudioCapture.cpp                                 |
+|                                                           |
+|   Audio capture helper for MACHINIST Music mode           |
+|                                                           |
+|   OpenRGB Team                                            |
+|                                                           |
+|   This file is part of the OpenRGB project                |
+|   SPDX-License-Identifier: GPL-2.0-or-later               |
+\*---------------------------------------------------------*/
+
 #include "MachinistAudioCapture.h"
 
 #ifdef MACHINIST_MUSIC_AUDIO_ENABLED

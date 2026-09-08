@@ -27,6 +27,10 @@
 #define MACHINIST_USAGE_PAGE 0xFF00
 #define MACHINIST_USAGE      0x0001
 
+/*---------------------------------------------------------*\
+| Low-level USB HID driver for Machinist ARGB controller    |
+| protocol operations, including Music mode audio updates.  |
+\*---------------------------------------------------------*/
 class MachinistARGBController
 {
 public:
@@ -60,8 +64,12 @@ private:
     std::unique_ptr<MachinistAudioCapture> audio_capture;
     std::thread music_update_thread;
     std::atomic<bool> music_mode_active;
-    // DeviceUpdateLEDs() can be called concurrently from multiple threads;
-    // this serializes access to audio_capture/music_update_thread.
+
+    /*---------------------------------------------------------*\
+    | DeviceUpdateLEDs() can be called concurrently from       |
+    | multiple threads; serialize access to shared Music-mode  |
+    | state to avoid races and deadlocks.                      |
+    \*---------------------------------------------------------*/
     std::mutex music_mode_mutex;
 };
 
