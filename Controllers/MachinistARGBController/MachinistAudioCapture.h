@@ -1,4 +1,16 @@
-#pragma once
+/*---------------------------------------------------------*\
+| MachinistAudioCapture.h                                   |
+|                                                           |
+|   Audio capture helper for MACHINIST Music mode           |
+|                                                           |
+|   OpenRGB Team                                            |
+|                                                           |
+|   This file is part of the OpenRGB project                |
+|   SPDX-License-Identifier: GPL-2.0-or-later               |
+\*---------------------------------------------------------*/
+
+#ifndef MACHINISTAUDIOCAPTURE_H
+#define MACHINISTAUDIOCAPTURE_H
 
 #include <array>
 #include <cstdint>
@@ -44,11 +56,29 @@ private:
 class MachinistAudioCapture
 {
 public:
-    MachinistAudioCapture() {}
-    ~MachinistAudioCapture() {}
-    bool Initialize() { return false; }
-    void Stop() {}
-    std::array<uint8_t, 3> GetFFTBins() const { return {0, 0, 0}; }
+    MachinistAudioCapture()
+    {
+    }
+
+    ~MachinistAudioCapture()
+    {
+    }
+
+    bool Initialize()
+    {
+        return false;
+    }
+
+    void Stop()
+    {
+    }
+
+    std::array<uint8_t, 3> GetFFTBins() const
+    {
+        return {0, 0, 0};
+    }
 };
 
 #endif  // MACHINIST_MUSIC_AUDIO_ENABLED
+
+#endif // MACHINISTAUDIOCAPTURE_H

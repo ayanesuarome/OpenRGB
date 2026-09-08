@@ -31,7 +31,12 @@ public:
 
 private:
     MachinistARGBController* controller;
-    int previous_mode = -1;  // Track previous mode to detect Music mode changes
+
+    /*---------------------------------------------------------*\
+    | Track previous mode to detect transitions away from      |
+    | Music mode and stop background audio updates cleanly.    |
+    \*---------------------------------------------------------*/
+    int previous_mode = -1;
 };
 
 #endif // RGBCONTROLLER_MACHINISTARGB_H
