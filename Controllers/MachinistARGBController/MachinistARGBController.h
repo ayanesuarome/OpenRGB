@@ -18,7 +18,7 @@
 #include <atomic>
 #include <thread>
 #include <mutex>
-#include <hidapi/hidapi.h>
+#include <hidapi.h>
 #include "hidapi_wrapper.h"
 #include "MachinistAudioCapture.h"
 
