@@ -17,9 +17,16 @@
 #include <cstdio>
 #include <algorithm>
 #include <cmath>
+#include <chrono>
 #include <vector>
 #include <string>
 #include "LogManager.h"
+
+#ifdef _WIN32
+#include <audioclient.h>
+#include <mmdeviceapi.h>
+#include <wrl/client.h>
+#endif
 
 MachinistAudioCapture::MachinistAudioCapture()
     : state(std::make_shared<SharedState>())
@@ -31,6 +38,7 @@ MachinistAudioCapture::~MachinistAudioCapture()
     Stop();
 }
 
+#ifndef _WIN32
 static std::string GetDefaultMonitorSource()
 {
     // Ask PulseAudio/PipeWire for the current default sink, then use its monitor source.
@@ -61,9 +69,15 @@ static std::string GetDefaultMonitorSource()
 
     return sink_name + ".monitor";
 }
+#endif
 
 bool MachinistAudioCapture::Initialize()
 {
+#ifdef _WIN32
+    state->running = true;
+    std::thread(&MachinistAudioCapture::CaptureThreadFunc, state).detach();
+    return true;
+#else
     // PulseAudio configuration for capturing audio
     pa_sample_spec ss;
     ss.format = PA_SAMPLE_FLOAT32;
@@ -118,6 +132,7 @@ bool MachinistAudioCapture::Initialize()
 
     // All attempts failed
     return false;
+#endif
 }
 
 void MachinistAudioCapture::Stop()
@@ -130,6 +145,151 @@ void MachinistAudioCapture::Stop()
 
 void MachinistAudioCapture::CaptureThreadFunc(std::shared_ptr<SharedState> state)
 {
+#ifdef _WIN32
+    HRESULT result = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    const bool com_initialized = SUCCEEDED(result);
+    if (!com_initialized && result != RPC_E_CHANGED_MODE)
+    {
+        LOG_DEBUG("[MachinistARGB] WASAPI COM initialization failed: 0x%08lx", result);
+        state->running = false;
+        return;
+    }
+
+    Microsoft::WRL::ComPtr<IMMDeviceEnumerator> enumerator;
+    Microsoft::WRL::ComPtr<IMMDevice> device;
+    Microsoft::WRL::ComPtr<IAudioClient> audio_client;
+    Microsoft::WRL::ComPtr<IAudioCaptureClient> capture_client;
+
+    result = CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL,
+                              __uuidof(IMMDeviceEnumerator), &enumerator);
+    if (SUCCEEDED(result))
+    {
+        result = enumerator->GetDefaultAudioEndpoint(eRender, eConsole, &device);
+    }
+    if (SUCCEEDED(result))
+    {
+        result = device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr,
+                                  &audio_client);
+    }
+
+    WAVEFORMATEX* mix_format = nullptr;
+    UINT16 channels = 0;
+    WORD bits_per_sample = 0;
+    bool float_format = false;
+    if (SUCCEEDED(result))
+    {
+        result = audio_client->GetMixFormat(&mix_format);
+        if (SUCCEEDED(result))
+        {
+            channels = mix_format->nChannels;
+            bits_per_sample = mix_format->wBitsPerSample;
+            float_format = mix_format->wFormatTag == WAVE_FORMAT_IEEE_FLOAT ||
+                           (mix_format->wFormatTag == WAVE_FORMAT_EXTENSIBLE &&
+                            bits_per_sample == 32);
+        }
+    }
+    if (SUCCEEDED(result))
+    {
+        result = audio_client->Initialize(AUDCLNT_SHAREMODE_SHARED,
+                                          AUDCLNT_STREAMFLAGS_LOOPBACK,
+                                          0, 0, mix_format, nullptr);
+    }
+    if (SUCCEEDED(result))
+    {
+        result = audio_client->GetService(__uuidof(IAudioCaptureClient),
+                                          &capture_client);
+    }
+    if (mix_format)
+    {
+        CoTaskMemFree(mix_format);
+    }
+
+    if (FAILED(result) || channels == 0)
+    {
+        LOG_DEBUG("[MachinistARGB] WASAPI loopback initialization failed: 0x%08lx", result);
+        state->running = false;
+        if (com_initialized)
+        {
+            CoUninitialize();
+        }
+        return;
+    }
+
+    result = audio_client->Start();
+    if (FAILED(result))
+    {
+        LOG_DEBUG("[MachinistARGB] WASAPI loopback start failed: 0x%08lx", result);
+        state->running = false;
+        if (com_initialized)
+        {
+            CoUninitialize();
+        }
+        return;
+    }
+
+    LOG_DEBUG("[MachinistARGB] WASAPI loopback capture started");
+    while (state->running)
+    {
+        UINT32 packet_length = 0;
+        if (FAILED(capture_client->GetNextPacketSize(&packet_length)))
+        {
+            break;
+        }
+
+        while (packet_length > 0 && state->running)
+        {
+            BYTE* data = nullptr;
+            UINT32 frames = 0;
+            DWORD flags = 0;
+            if (FAILED(capture_client->GetBuffer(&data, &frames, &flags, nullptr, nullptr)))
+            {
+                break;
+            }
+
+            if (!(flags & AUDCLNT_BUFFERFLAGS_SILENT) && data && frames > 0)
+            {
+                double energy = 0.0;
+                const UINT32 sample_count = frames * channels;
+                if (float_format)
+                {
+                    const auto* samples = reinterpret_cast<const float*>(data);
+                    for (UINT32 i = 0; i < sample_count; ++i)
+                    {
+                        energy += static_cast<double>(samples[i]) * samples[i];
+                    }
+                }
+                else if (bits_per_sample == 16)
+                {
+                    const auto* samples = reinterpret_cast<const int16_t*>(data);
+                    for (UINT32 i = 0; i < sample_count; ++i)
+                    {
+                        const double sample = samples[i] / 32768.0;
+                        energy += sample * sample;
+                    }
+                }
+                const float level = static_cast<float>(std::sqrt(energy / sample_count));
+                const uint8_t value = static_cast<uint8_t>(std::min(255.0f, level * 500.0f));
+                for (int i = 0; i < 3; ++i)
+                {
+                    state->fft_bins[i] = value;
+                }
+            }
+
+            capture_client->ReleaseBuffer(frames);
+            if (FAILED(capture_client->GetNextPacketSize(&packet_length)))
+            {
+                packet_length = 0;
+            }
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    audio_client->Stop();
+    if (com_initialized)
+    {
+        CoUninitialize();
+    }
+#else
     float sample_buffer[512];
 
     // Below this level, treat the signal as silence to avoid noise-floor
@@ -179,6 +339,7 @@ void MachinistAudioCapture::CaptureThreadFunc(std::shared_ptr<SharedState> state
         pa_simple_free(state->pa_handle);
         state->pa_handle = nullptr;
     }
+#endif
 }
 
 std::array<uint8_t, 3> MachinistAudioCapture::GetFFTBins() const

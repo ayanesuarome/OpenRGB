@@ -21,8 +21,15 @@
 #include <atomic>
 #include <vector>
 #include <memory>
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#else
 #include <pulse/simple.h>
 #include <pulse/error.h>
+#endif
 
 class MachinistAudioCapture
 {
@@ -41,7 +48,9 @@ private:
     struct SharedState
     {
         std::atomic<bool>              running{false};
+#ifndef _WIN32
         pa_simple*                     pa_handle = nullptr;
+#endif
         std::array<std::atomic<uint8_t>, 3> fft_bins{};
     };
 

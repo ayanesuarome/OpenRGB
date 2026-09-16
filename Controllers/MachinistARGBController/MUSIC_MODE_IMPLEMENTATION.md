@@ -1,216 +1,179 @@
-# Machinist F-X9D ARGB - Audio-Reactive Music Mode Implementation Guide
+# Machinist F-X9D ARGB - Audio-Reactive Music Mode
 
 ## Overview
 
-The Machinist F-X9D ARGB Controller supports true audio-reactive animations via the **0xC0 protocol command**. This document outlines the complete implementation needed for full music synchronization support.
+The Machinist F-X9D ARGB controller supports an audio-reactive effect through the
+`0xC0` HID command. OpenRGB activates the controller's Music effect (`0x16`) and
+then sends the current system-output audio level periodically.
+
+The controller performs the visual animation internally. OpenRGB supplies one
+overall audio-energy value rather than calculating independent frequency bands.
 
 ## Current State
 
-- ✅ Basic Music mode (0x16) works as static animation
-- ✅ Color and brightness controls available
-- ❌ Audio capture not implemented
-- ❌ FFT processing not implemented
-- ❌ Real-time audio synchronization disabled
+- Basic Music mode (`0x16`) works as a static device animation.
+- Color settings remain available.
+- Linux captures system output through PulseAudio/PipeWire.
+- Windows captures system output through WASAPI loopback.
+- Audio levels are sent in real time through the `0xC0` command.
+- If audio capture cannot be initialized, OpenRGB falls back to static Music mode.
+- The current implementation uses RMS audio energy, not a true FFT spectrum.
 
-## Audio Protocol (0xC0)
+## HID Protocol
 
-### Packet Structure
+### Music Activation Packet
 
-```
-[0]   = 0x01          Report ID (different from normal 0x03)
-[1]   = 0xC0          Audio-reactive command ID
-[2]   = 0x01 or 0x02  Channel (alternate each packet)
-[3]   = FFT_BIN_0     Audio spectrum byte 0 (bass frequencies) - 0x00-0xFF
-[4]   = FFT_BIN_1     Audio spectrum byte 1 (mid frequencies) - 0x00-0xFF
-[5]   = FFT_BIN_2     Audio spectrum byte 2 (treble frequencies) - 0x00-0xFF
-[6]   = FFT_BIN_3     Audio spectrum byte 3 (high frequencies) - 0x00-0xFF
-[7]   = 0x01          Fixed parameter
-[8]   = 0x00          Fixed parameter
-[9-63] = 0x00         Padding
+Music mode is first armed using the normal animated-effect packet:
+
+```text
+03 01 16 RR GG BB BR SS
 ```
 
-### Transmission Pattern
+The packet is sent for both controller channels. `RR`, `GG`, and `BB` are the
+selected color, `BR` is brightness, and the speed field is fixed for Music mode.
 
-- **Frequency**: ~100-200ms intervals (5-10 Hz update rate)
-- **Alternation**: Channel 0x01, then 0x02, alternating
-- **Persistence**: Must continue while music is playing; stops when music stops
-- **Payload**: 4 bytes of audio/FFT data (bytes 3-6)
+### Audio Packet (`0xC0`)
 
-### Captured Examples
+The audio packet is 8 bytes long:
 
-```
-01 c0 01 00 00 00 00 01 00  (Silence/baseline)
-01 c0 02 00 00 00 00 01 00
-01 c0 01 7f 49 a9 6a 01 00  (Active music - varying bass/mid/treble)
-01 c0 02 bf 4b 54 6e 01 00
-```
-
-## FFT Mapping Hypothesis
-
-Based on typical audio visualization patterns:
-
-| Byte | Frequency Range | Purpose |
-|------|-----------------|---------|
-| [3]  | 0-500 Hz       | Bass/Low frequencies |
-| [4]  | 500-2000 Hz    | Midrange frequencies |
-| [5]  | 2000-8000 Hz   | Treble/High mid frequencies |
-| [6]  | 8000+ Hz       | Ultra-high frequencies |
-
-Each byte is normalized to 0x00-0xFF representing the amplitude of that frequency band.
-
-## Implementation Steps
-
-### Phase 1: Audio Capture (Linux: PulseAudio/ALSA)
-
-```cpp
-#include <pulse/pulseaudio.h>
-
-class MusicModeAudioCapture {
-private:
-    pa_simple* audio_stream;
-    std::vector<float> audio_buffer;
-    std::thread capture_thread;
-    
-public:
-    bool Initialize();
-    void CaptureAudioThread();
-    std::array<uint8_t, 4> GetFFTBins();
-};
+```text
+[0] = 0x01          Audio report ID
+[1] = 0xC0          Audio-reactive command
+[2] = 0x01 or 0x02  Controller channel
+[3] = LEVEL         Current audio level, 0x00-0xFF
+[4] = LEVEL         Same level for the second value
+[5] = LEVEL         Same level for the third value
+[6] = 0x01          Fixed parameter
+[7] = 0x00          Fixed parameter
 ```
 
-### Phase 2: FFT Processing
+The channel alternates between `0x01` and `0x02`, approximately once every
+100 milliseconds. The packet format matches the captured vendor traffic, for
+example:
 
-```cpp
-#include <fftw3.h>  // or kiss_fft for lightweight
-
-class FFTProcessor {
-private:
-    fftw_plan plan;
-    std::array<double, FFT_SIZE> input;
-    std::array<fftw_complex, FFT_SIZE/2+1> output;
-    
-public:
-    std::array<uint8_t, 4> ComputeSpectrumBins(const std::vector<float>& audio_samples);
-};
+```text
+01 c0 01 00 00 00 01 00  (Silence/baseline)
+01 c0 02 00 00 00 01 00
+01 c0 01 4a 4a 4a 01 00  (Active audio)
+01 c0 02 bf bf bf 01 00
 ```
 
-### Phase 3: Protocol Integration
+## Audio-Level Processing
 
-Modify `MachinistARGBController.cpp`:
+USB captures show that the three audio values are nearly identical. The device
+generates the color animation itself, so sending one overall loudness value in
+all three positions is more accurate than inventing separate bass, midrange, and
+treble values.
 
-```cpp
-void MachinistARGBController::SendMusicWithAudio(
-    unsigned char red, unsigned char green, unsigned char blue,
-    unsigned char brightness, const std::array<uint8_t, 4>& fft_bins)
-{
-    if(dev == nullptr) return;
-    
-    for(unsigned char channel = 0x01; channel <= 0x02; channel++)
-    {
-        unsigned char buf[64];
-        memset(buf, 0, sizeof(buf));
-        
-        buf[0] = 0x01;              // Report ID (0x01 for audio)
-        buf[1] = 0xC0;              // Audio command
-        buf[2] = channel;           // Channel
-        buf[3] = fft_bins[0];       // Bass
-        buf[4] = fft_bins[1];       // Mid
-        buf[5] = fft_bins[2];       // Treble
-        buf[6] = fft_bins[3];       // High
-        buf[7] = 0x01;              // Fixed
-        buf[8] = 0x00;              // Fixed
-        
-        wrapper.hid_write(dev, buf, 64);
-    }
-}
-```
+For each captured buffer, OpenRGB:
 
-### Phase 4: Threading & Update Loop
+1. Calculates RMS energy from the samples.
+2. Applies a small noise gate so idle output does not cause LED activity.
+3. Scales the result to the byte range `0x00`-`0xFF`.
+4. Clamps values above `0xFF`.
+5. Stores the same level in all three output values.
 
-```cpp
-// In RGBController_MachinistARGB.cpp
-void MusicUpdateThread() {
-    while(music_mode_active) {
-        auto fft = audio_capture->GetFFTBins();
-        controller->SendMusicWithAudio(red, green, blue, brightness, fft);
-        std::this_thread::sleep_for(std::chrono::milliseconds(150));
-    }
-}
-```
+The implementation keeps the method name `GetFFTBins()` for compatibility with
+the controller code, but its current return values are RMS levels, not FFT bins.
 
-## Cross-Platform Audio Capture
+## Platform Implementations
+
+### Linux: PulseAudio/PipeWire
+
+When `libpulse-simple` is available, `MachinistAudioCapture` opens a monitor
+source for the current default output sink. It attempts these sources in order:
+
+1. The monitor corresponding to `pactl get-default-sink`.
+2. Known monitor names used by common USB, HDMI, and analog devices.
+3. The default PulseAudio source as a final fallback.
+
+The capture thread reads 512 floating-point samples at 44.1 kHz and updates the
+shared audio level.
+
+### Windows: WASAPI Loopback
+
+Windows uses the native Windows Audio Session API and does not require an extra
+audio DLL. The capture thread:
+
+1. Initializes COM with `CoInitializeEx`.
+2. Selects the default render endpoint with `IMMDeviceEnumerator`.
+3. Creates an `IAudioClient` in shared mode with
+   `AUDCLNT_STREAMFLAGS_LOOPBACK`.
+4. Reads rendered audio packets through `IAudioCaptureClient`.
+5. Supports the normal shared-mode float format and 16-bit PCM fallback.
+6. Calculates RMS energy and updates the three level values.
+
+Loopback capture observes audio being played by Windows, not microphone input.
+The Windows build defines `MACHINIST_MUSIC_AUDIO_ENABLED` and links `ole32` for
+the COM APIs used by WASAPI.
+
+## Controller and Threading Flow
+
+When Music mode is selected, `StartMusicMode()`:
+
+1. Creates and initializes `MachinistAudioCapture`.
+2. Sends the `0x16` Music effect packet to arm the controller.
+3. Starts a worker thread for periodic `0xC0` updates.
+4. Reads the latest audio level and sends it on alternating channels.
+
+When the mode changes, `StopMusicMode()` stops the update loop, signals the audio
+capture helper, and releases its resources. Access to the audio helper and update
+thread is protected by `music_mode_mutex`, since LED updates can be requested
+from multiple OpenRGB threads.
+
+The capture thread is detached because PulseAudio reads can block while a monitor
+source is idle or suspended. `Stop()` signals the shared atomic state and lets the
+capture thread release its platform-specific handle when it exits.
+
+## Fallback Behavior
+
+If audio capture initialization fails:
+
+- OpenRGB logs the failure at debug level.
+- The normal static Music packet is still sent.
+- No audio worker thread is started.
+- The controller remains usable in its built-in Music effect.
+
+This allows Music mode to work even when PulseAudio is unavailable or when a
+Windows audio endpoint cannot be opened.
+
+## Build Requirements
 
 ### Linux
-- **Recommended**: PulseAudio via `pa_simple` API (simpler)
-- **Alternative**: ALSA direct (lower-level, more complex)
-- **Fallback**: JACK (professional audio)
+
+`libpulse-simple` is optional. When detected by qmake, it enables
+`MACHINIST_MUSIC_AUDIO_ENABLED` and links the PulseAudio implementation.
 
 ### Windows
-- **Recommended**: WASAPI (Windows Audio Session API)
-- **Alternative**: DirectSound (legacy)
 
-### macOS
-- **Recommended**: Core Audio HAL (Hardware Abstraction Layer)
+No third-party audio package is required. The Windows build enables
+`MACHINIST_MUSIC_AUDIO_ENABLED` and links the system `ole32` library. The build
+also requires the normal OpenRGB MSVC and Qt toolchain.
 
-## Dependencies to Add
+## Testing Checklist
 
-```cmake
-# For audio capture:
-find_package(PulseAudio REQUIRED)  # Linux
-find_package(PortAudio)             # Cross-platform (portable option)
+1. Build OpenRGB on Linux with `libpulse-simple` installed.
+2. Build OpenRGB on Windows with the MSVC Qt kit.
+3. Select the Machinist controller's Music mode.
+4. Play audio through the system's default output device.
+5. Confirm debug logs show successful capture initialization.
+6. Confirm the LEDs react to silence, normal playback, and changing volume.
+7. Switch away from Music mode and confirm that the update thread stops cleanly.
+8. Test with no usable audio endpoint and confirm static Music fallback.
 
-# For FFT:
-find_package(FFTW3 REQUIRED)        # Or kiss_fft as header-only alternative
-```
+## Known Limitations
 
-## Testing Strategy
+- The current implementation does not calculate a frequency-domain FFT.
+- All three audio payload values intentionally contain the same RMS level.
+- Windows captures the default console render endpoint selected by WASAPI.
+- Linux depends on a working PulseAudio/PipeWire compatibility layer.
+- Hardware validation is still required to confirm behavior across different
+  Machinist firmware revisions.
 
-1. **Unit Test**: Verify FFT bin extraction with known frequencies
-2. **Integration Test**: Capture audio from speaker output loop
-3. **Hardware Test**: Run with actual YouTube Music, verify LED sync
-4. **Edge Cases**:
-   - Silence (all bins ~0x00)
-   - Pure tone (single bin high)
-   - Complex music (multiple bins active)
-   - Rapid tempo changes
+## Relevant Source Files
 
-## Known Challenges
-
-1. **Audio Capture Permissions**: May require PulseAudio socket access on Linux
-2. **Loopback Device**: Need to monitor speaker output, not just microphone
-3. **FFT Latency**: Must be < 50ms to stay in sync with visual
-4. **Cross-Platform**: Three different audio APIs required
-5. **Resource Usage**: FFT @ 44.1kHz continuously will use ~5-10% CPU
-
-## Performance Considerations
-
-- FFT size: 512-2048 samples (balance between resolution and latency)
-- Update frequency: ~7 Hz (send every 140ms, based on capture analysis)
-- Buffer management: Ring buffer to prevent blocking
-
-## Security/Permissions
-
-- **Linux**: May need user in `audio` group or PulseAudio access
-- **Windows**: Application needs audio capture permission (UAC)
-- **macOS**: Microphone permission dialog (can use loopback instead)
-
-## Fallback Strategy
-
-If audio capture fails:
-- Keep current static animation behavior
-- Log warning to console
-- Allow user to select static Music mode as fallback
-
-## Timeline Estimate
-
-- Phase 1 (Audio Capture): 4-6 hours
-- Phase 2 (FFT Processing): 2-3 hours
-- Phase 3 (Protocol Integration): 1-2 hours
-- Phase 4 (Cross-platform Testing): 3-4 hours
-- **Total: ~12-15 hours development time**
-
-## References
-
-- FFTW Documentation: http://www.fftw.org/
-- PulseAudio Simple API: https://www.freedesktop.org/wiki/Software/PulseAudio/
-- USB Capture Analysis: See `machinist_music_options.txt` (3142 packets with music playing)
+- `MachinistAudioCapture.h`: platform selection and shared capture interface.
+- `MachinistAudioCapture.cpp`: PulseAudio and WASAPI capture implementations.
+- `MachinistARGBController.cpp`: Music lifecycle and `0xC0` packet transmission.
+- `RGBController_MachinistARGB.cpp`: OpenRGB mode selection and mode transitions.
+- `OpenRGB.pro`: platform-specific audio define and Windows `ole32` linkage.

@@ -325,6 +325,8 @@ TRANSLATIONS +=                                                                 
 # Windows-specific Configuration                                                                #
 #-----------------------------------------------------------------------------------------------#
 win32:QMAKE_CXXFLAGS += /utf-8
+win32:DEFINES += MACHINIST_MUSIC_AUDIO_ENABLED=1
+win32:LIBS += -lole32
 win32:INCLUDEPATH +=                                                                            \
     dependencies/display-library/include                                                        \
     dependencies/hidapi-hotplug-win/include                                                     \
@@ -551,7 +553,7 @@ contains(QMAKE_PLATFORM, linux) {
 
     #-------------------------------------------------------------------------------------------#
     # Machinist Music Mode audio capture (optional)                                            #
-    #   Requires libpulse-simple for audio input stream                                        #
+    #   Uses PulseAudio on Linux and WASAPI loopback on Windows                                 #
     #-------------------------------------------------------------------------------------------#
     packagesExist(libpulse-simple) {
         PKGCONFIG += libpulse-simple
