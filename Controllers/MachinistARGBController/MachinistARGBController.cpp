@@ -174,7 +174,6 @@ void MachinistARGBController::StartMusicMode(unsigned char red, unsigned char gr
 
     if (music_mode_active)
     {
-        SendMusic(red, green, blue, brightness);
         return;
     }
 
