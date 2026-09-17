@@ -11,9 +11,10 @@
 
 ## USB Protocol
 
-### Packet Format
+### Effect Packet Format
 
-All commands use an 8-byte HID interrupt transfer format:
+Normal effect commands are written as 64-byte HID reports. The first 8 bytes
+contain the command and bytes 8-63 are zero padding:
 
 ```
 [0]   = 0x03          Report ID (fixed)
@@ -29,7 +30,7 @@ All commands use an 8-byte HID interrupt transfer format:
 
 **Key Notes:**
 - Each command must be sent **twice** (once per channel: 0x01, then 0x02)
-- Report ID is always 0x03
+- Effect report ID is 0x03
 - Channels are sent sequentially, not simultaneously
 - Brightness applies to all modes (effects and static)
 - Speed parameter is **inverted** on firmware: 0xFF = slowest, 0x00 = fastest
@@ -44,7 +45,7 @@ All commands use an 8-byte HID interrupt transfer format:
 | 0x17 | Rainbow Wave | Animation | Speed, Brightness | ✅ Implemented (standardized naming) |
 | 0x14 | Spectrum Cycle | Animation | Speed, Brightness | ✅ Implemented (standardized naming) |
 | 0x1A | Rainbow | Animation | Speed, Brightness | ✅ Implemented (matches capture order) |
-| 0x15 | Random | Animation | Speed, Brightness | ✅ Implemented (matches capture order) |
+| 0x15 | Random | Animation | Speed, Brightness | Omitted: indistinguishable from 0x14 on F-X9D firmware 5.11 |
 | 0x18 | Spring | Animation | Speed, Brightness | ✅ Implemented (matches capture order) |
 | 0x19 | Water | Animation | Speed, Brightness | ✅ Implemented (matches capture order) |
 | 0x16 | Music | Reactive | Brightness (speed unclear) | ✅ Implemented (matches capture order) |
@@ -53,6 +54,10 @@ All commands use an 8-byte HID interrupt transfer format:
 (except Breathing, which has 37 samples sweeping speed). Modes were mapped by matching
 the capture's packet order to the tested mode order from the capture notes:
 Static, Breathing, Strobe, Rainbow Wave, Spectrum Cycle, Rainbow, Random, Spring, Water, Music.
+
+Hardware validation on F-X9D firmware 5.11 found no visible difference between
+the vendor's Random command (`0x15`) and Spectrum Cycle (`0x14`). OpenRGB omits
+Random to avoid exposing two modes with the same observed behavior.
 
 **Flashing/Strobe verification:** The vendor's saved profile format (`WAVE.orp`) stores
 both `Breathing` and `Strobe` under mode ID `0x12`, matching USB captures.
@@ -131,28 +136,40 @@ Mode 5: Rainbow
   - Speed slider (0x00-0xFF, inverted on device)
   - Brightness slider (0x00-0xFF)
 
-Mode 6: Random
+Mode 6: Spring
   - Per-LED color control
   - Speed slider (0x00-0xFF, inverted on device)
   - Brightness slider (0x00-0xFF)
 
-Mode 7: Spring
+Mode 7: Water
   - Per-LED color control
   - Speed slider (0x00-0xFF, inverted on device)
   - Brightness slider (0x00-0xFF)
 
-Mode 8: Water
+Mode 8: Music (Audio-Reactive)
   - Per-LED color control
-  - Speed slider (0x00-0xFF, inverted on device)
-  - Brightness slider (0x00-0xFF)
-
-Mode 9: Music (Audio-Reactive - Not Fully Implemented)
-  - Per-LED color control
-  - Brightness slider (0x00-0xFF)
-  - **LIMITATION**: Requires audio capture and FFT transmission (0xC0 command) not yet implemented in OpenRGB
-  - Currently sends static 0x16 command like other animations
-  - Full audio-reactivity requires system audio capture and real-time FFT processing
+  - No brightness or speed slider; runs at maximum brightness
+  - Sends the normal 0x16 effect packet once to arm both channels
+  - Captures system-output audio through PulseAudio/PipeWire or WASAPI
+  - Streams RMS loudness through the 8-byte 0xC0 report
 ```
+
+### Music Audio Report
+
+```text
+[0] = 0x01          Report ID
+[1] = 0xC0          Audio command
+[2] = 0x01 or 0x02  Alternating channel
+[3] = LEVEL         RMS loudness
+[4] = LEVEL         RMS loudness
+[5] = LEVEL         RMS loudness
+[6] = 0x01          Fixed
+[7] = 0x00          Fixed
+```
+
+The three level bytes intentionally contain the same value. Captured vendor
+traffic shows they are nearly identical and the controller generates the visual
+color animation internally.
 
 ## Device Detection
 
@@ -178,18 +195,13 @@ Mode naming and ID mapping were cross-checked against the saved profile file `WA
 3. **No polling**: Device doesn't report current state; all control is write-only
 4. **Channel parity**: Both channels must receive identical commands
 5. **Speed inversion**: Firmware interprets speed backwards (0=fast, 0xFF=slow)
-6. **Music mode (0x16)**: Audio-reactivity requires FFT/audio data transmission via 0xC0 command (not implemented)
-   - Current implementation sends static animation only
-   - Requires system audio capture and real-time FFT processing via separate 0xC0 protocol
-   - Fully documented but deferred for future implementation
+6. **Music capture**: Linux requires a working PulseAudio/PipeWire compatibility
+  layer; Windows uses the default WASAPI console render endpoint
 
 ## Future Work
 
 - Validate whether CPU/AP modes from vendor UI require non-HID or additional commands
-- Test on Windows platform compatibility
+- Test additional Windows audio formats and output endpoints
 - Explore any additional parameters in extended packet formats
 - Profile manager integration (if supported by firmware)
-- **Audio-Reactive Music Mode (0xC0)**: Implement system audio capture and FFT transmission for true music synchronization
-  - Requires integrating audio capture library (PortAudio, PulseAudio, etc.)
-  - Protocol: Send 0xC0 command with FFT data bytes 3-6 every ~100ms per channel
-  - Needs cross-platform audio input handling
+- Validate additional Machinist firmware revisions

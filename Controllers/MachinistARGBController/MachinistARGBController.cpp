@@ -143,11 +143,6 @@ void MachinistARGBController::SendRainbow(unsigned char red, unsigned char green
     SendAnimatedEffect(0x1A, red, green, blue, speed, brightness);
 }
 
-void MachinistARGBController::SendRandom(unsigned char red, unsigned char green, unsigned char blue, unsigned char speed, unsigned char brightness)
-{
-    SendAnimatedEffect(0x15, red, green, blue, speed, brightness);
-}
-
 void MachinistARGBController::SendSpring(unsigned char red, unsigned char green, unsigned char blue, unsigned char speed, unsigned char brightness)
 {
     SendAnimatedEffect(0x18, red, green, blue, speed, brightness);
@@ -179,7 +174,7 @@ void MachinistARGBController::StartMusicMode(unsigned char red, unsigned char gr
 
     if (music_mode_active)
     {
-        // Already running
+        SendMusic(red, green, blue, brightness);
         return;
     }
 
@@ -303,12 +298,6 @@ void MachinistARGBController::StopMusicMode()
     }
 }
 
-void MachinistARGBController::UpdateMusicMode(unsigned char red, unsigned char green, unsigned char blue, unsigned char brightness)
-{
-    // Update music mode parameters (currently used for static settings if audio fails)
-    SendMusic(red, green, blue, brightness);
-}
-
 void MachinistARGBController::SendMusicWithAudio(unsigned char channel, const std::array<uint8_t, 3>& fft_bins)
 {
     /*
@@ -343,7 +332,9 @@ void MachinistARGBController::SendMusicWithAudio(unsigned char channel, const st
     buf[6] = 0x01;              // Fixed parameter
     buf[7] = 0x00;              // Fixed parameter
 
-    wrapper.hid_write(dev, buf, sizeof(buf));
+    int res = wrapper.hid_write(dev, buf, sizeof(buf));
+    if(res < 0)
+    {
+        LOG_DEBUG("[MachinistARGB] Failed to write music audio packet");
+    }
 }
-
-

@@ -24,6 +24,7 @@
 
 #ifdef _WIN32
 #include <audioclient.h>
+#include <ksmedia.h>
 #include <mmdeviceapi.h>
 #include <wrl/client.h>
 #endif
@@ -75,8 +76,22 @@ bool MachinistAudioCapture::Initialize()
 {
 #ifdef _WIN32
     state->running = true;
-    std::thread(&MachinistAudioCapture::CaptureThreadFunc, state).detach();
-    return true;
+    try
+    {
+        std::thread(&MachinistAudioCapture::CaptureThreadFunc, state).detach();
+    }
+    catch (const std::exception& exception)
+    {
+        LOG_DEBUG("[MachinistARGB] Failed to start WASAPI capture thread: %s", exception.what());
+        state->running = false;
+        return false;
+    }
+
+    std::unique_lock<std::mutex> lock(state->initialization_mutex);
+    state->initialization_condition.wait(lock, [this]() {
+        return state->initialization_complete;
+    });
+    return state->initialization_successful;
 #else
     // PulseAudio configuration for capturing audio
     pa_sample_spec ss;
@@ -146,12 +161,22 @@ void MachinistAudioCapture::Stop()
 void MachinistAudioCapture::CaptureThreadFunc(std::shared_ptr<SharedState> state)
 {
 #ifdef _WIN32
+    auto finish_initialization = [&state](bool successful) {
+        {
+            std::lock_guard<std::mutex> lock(state->initialization_mutex);
+            state->initialization_successful = successful;
+            state->initialization_complete = true;
+        }
+        state->initialization_condition.notify_one();
+    };
+
     HRESULT result = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
     const bool com_initialized = SUCCEEDED(result);
     if (!com_initialized && result != RPC_E_CHANGED_MODE)
     {
         LOG_DEBUG("[MachinistARGB] WASAPI COM initialization failed: 0x%08lx", result);
         state->running = false;
+        finish_initialization(false);
         return;
     }
 
@@ -176,6 +201,7 @@ void MachinistAudioCapture::CaptureThreadFunc(std::shared_ptr<SharedState> state
     UINT16 channels = 0;
     WORD bits_per_sample = 0;
     bool float_format = false;
+    bool supported_format = false;
     if (SUCCEEDED(result))
     {
         result = audio_client->GetMixFormat(&mix_format);
@@ -183,9 +209,29 @@ void MachinistAudioCapture::CaptureThreadFunc(std::shared_ptr<SharedState> state
         {
             channels = mix_format->nChannels;
             bits_per_sample = mix_format->wBitsPerSample;
-            float_format = mix_format->wFormatTag == WAVE_FORMAT_IEEE_FLOAT ||
-                           (mix_format->wFormatTag == WAVE_FORMAT_EXTENSIBLE &&
-                            bits_per_sample == 32);
+            if (mix_format->wFormatTag == WAVE_FORMAT_IEEE_FLOAT)
+            {
+                float_format = true;
+                supported_format = bits_per_sample == 32;
+            }
+            else if (mix_format->wFormatTag == WAVE_FORMAT_PCM)
+            {
+                supported_format = bits_per_sample == 16;
+            }
+            else if (mix_format->wFormatTag == WAVE_FORMAT_EXTENSIBLE &&
+                     mix_format->cbSize >= sizeof(WAVEFORMATEXTENSIBLE) - sizeof(WAVEFORMATEX))
+            {
+                const auto* extensible_format = reinterpret_cast<const WAVEFORMATEXTENSIBLE*>(mix_format);
+                float_format = IsEqualGUID(extensible_format->SubFormat, KSDATAFORMAT_SUBTYPE_IEEE_FLOAT);
+                supported_format = (float_format && bits_per_sample == 32) ||
+                                   (IsEqualGUID(extensible_format->SubFormat, KSDATAFORMAT_SUBTYPE_PCM) &&
+                                    bits_per_sample == 16);
+            }
+
+            if (!supported_format)
+            {
+                result = AUDCLNT_E_UNSUPPORTED_FORMAT;
+            }
         }
     }
     if (SUCCEEDED(result))
@@ -208,6 +254,7 @@ void MachinistAudioCapture::CaptureThreadFunc(std::shared_ptr<SharedState> state
     {
         LOG_DEBUG("[MachinistARGB] WASAPI loopback initialization failed: 0x%08lx", result);
         state->running = false;
+        finish_initialization(false);
         if (com_initialized)
         {
             CoUninitialize();
@@ -220,6 +267,7 @@ void MachinistAudioCapture::CaptureThreadFunc(std::shared_ptr<SharedState> state
     {
         LOG_DEBUG("[MachinistARGB] WASAPI loopback start failed: 0x%08lx", result);
         state->running = false;
+        finish_initialization(false);
         if (com_initialized)
         {
             CoUninitialize();
@@ -228,6 +276,7 @@ void MachinistAudioCapture::CaptureThreadFunc(std::shared_ptr<SharedState> state
     }
 
     LOG_DEBUG("[MachinistARGB] WASAPI loopback capture started");
+    finish_initialization(true);
     while (state->running)
     {
         UINT32 packet_length = 0;
@@ -246,7 +295,14 @@ void MachinistAudioCapture::CaptureThreadFunc(std::shared_ptr<SharedState> state
                 break;
             }
 
-            if (!(flags & AUDCLNT_BUFFERFLAGS_SILENT) && data && frames > 0)
+            if ((flags & AUDCLNT_BUFFERFLAGS_SILENT) || !data)
+            {
+                for (int i = 0; i < 3; ++i)
+                {
+                    state->fft_bins[i] = 0;
+                }
+            }
+            else if (frames > 0)
             {
                 double energy = 0.0;
                 const UINT32 sample_count = frames * channels;
@@ -267,7 +323,11 @@ void MachinistAudioCapture::CaptureThreadFunc(std::shared_ptr<SharedState> state
                         energy += sample * sample;
                     }
                 }
-                const float level = static_cast<float>(std::sqrt(energy / sample_count));
+                float level = static_cast<float>(std::sqrt(energy / sample_count));
+                if (level < 0.01f)
+                {
+                    level = 0.0f;
+                }
                 const uint8_t value = static_cast<uint8_t>(std::min(255.0f, level * 500.0f));
                 for (int i = 0; i < 3; ++i)
                 {

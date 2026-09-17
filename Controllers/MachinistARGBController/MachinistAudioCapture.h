@@ -22,6 +22,8 @@
 #include <vector>
 #include <memory>
 #ifdef _WIN32
+#include <condition_variable>
+#include <mutex>
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
@@ -48,7 +50,12 @@ private:
     struct SharedState
     {
         std::atomic<bool>              running{false};
-#ifndef _WIN32
+    #ifdef _WIN32
+        std::mutex                     initialization_mutex;
+        std::condition_variable        initialization_condition;
+        bool                           initialization_complete = false;
+        bool                           initialization_successful = false;
+    #else
         pa_simple*                     pa_handle = nullptr;
 #endif
         std::array<std::atomic<uint8_t>, 3> fft_bins{};

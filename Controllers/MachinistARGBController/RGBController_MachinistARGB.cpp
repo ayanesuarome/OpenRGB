@@ -105,22 +105,9 @@ RGBController_MachinistARGB::RGBController_MachinistARGB(MachinistARGBController
     Rainbow.brightness          = 0xFF;
     modes.push_back(Rainbow);
 
-    mode Random;
-    Random.name                 = "Random"; // Device-specific randomized animation.
-    Random.value                = 6;
-    Random.flags                = MODE_FLAG_HAS_PER_LED_COLOR | MODE_FLAG_HAS_SPEED | MODE_FLAG_HAS_BRIGHTNESS;
-    Random.color_mode           = MODE_COLORS_PER_LED;
-    Random.speed_min            = 0x00;
-    Random.speed_max            = 0xFF;
-    Random.speed                = 0x7F;
-    Random.brightness_min       = 0x00;
-    Random.brightness_max       = 0xFF;
-    Random.brightness           = 0xFF;
-    modes.push_back(Random);
-
     mode Spring;
     Spring.name                 = "Spring"; // Device-specific spring-like pulse animation.
-    Spring.value                = 7;
+    Spring.value                = 6;
     Spring.flags                = MODE_FLAG_HAS_PER_LED_COLOR | MODE_FLAG_HAS_SPEED | MODE_FLAG_HAS_BRIGHTNESS;
     Spring.color_mode           = MODE_COLORS_PER_LED;
     Spring.speed_min            = 0x00;
@@ -133,7 +120,7 @@ RGBController_MachinistARGB::RGBController_MachinistARGB(MachinistARGBController
 
     mode Water;
     Water.name                  = "Water"; // Device-specific flowing/ripple animation.
-    Water.value                 = 8;
+    Water.value                 = 7;
     Water.flags                 = MODE_FLAG_HAS_PER_LED_COLOR | MODE_FLAG_HAS_SPEED | MODE_FLAG_HAS_BRIGHTNESS;
     Water.color_mode            = MODE_COLORS_PER_LED;
     Water.speed_min             = 0x00;
@@ -146,7 +133,7 @@ RGBController_MachinistARGB::RGBController_MachinistARGB(MachinistARGBController
 
     mode Music;
     Music.name                  = "Music"; // Audio-reactive device mode.
-    Music.value                 = 9;
+    Music.value                 = 8;
     Music.flags                 = MODE_FLAG_HAS_PER_LED_COLOR;
     Music.color_mode            = MODE_COLORS_PER_LED;
     modes.push_back(Music);
@@ -230,28 +217,21 @@ void RGBController_MachinistARGB::DeviceUpdateLEDs()
                 controller->SendRainbow(red, green, blue, speed, brightness);
                 break;
             }
-            case 6:  // Random (0x15)
-            {
-                unsigned char speed = static_cast<unsigned char>(modes[active_mode].speed);
-                unsigned char brightness = static_cast<unsigned char>(modes[active_mode].brightness);
-                controller->SendRandom(red, green, blue, speed, brightness);
-                break;
-            }
-            case 7:  // Spring (0x18)
+            case 6:  // Spring (0x18)
             {
                 unsigned char speed = static_cast<unsigned char>(modes[active_mode].speed);
                 unsigned char brightness = static_cast<unsigned char>(modes[active_mode].brightness);
                 controller->SendSpring(red, green, blue, speed, brightness);
                 break;
             }
-            case 8:  // Water (0x19)
+            case 7:  // Water (0x19)
             {
                 unsigned char speed = static_cast<unsigned char>(modes[active_mode].speed);
                 unsigned char brightness = static_cast<unsigned char>(modes[active_mode].brightness);
                 controller->SendWater(red, green, blue, speed, brightness);
                 break;
             }
-            case 9: // Music (0x16)
+            case 8: // Music (0x16)
             {
                 // No brightness slider for this mode; always runs at max.
                 controller->StartMusicMode(red, green, blue, 0xFF);
@@ -281,7 +261,7 @@ void RGBController_MachinistARGB::DeviceUpdateMode()
      */
 
     // If switching away from Music mode, stop audio capture
-    if (previous_mode == 9 && active_mode != 9)
+    if (previous_mode == 8 && active_mode != 8)
     {
         controller->StopMusicMode();
     }

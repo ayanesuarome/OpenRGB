@@ -15,6 +15,8 @@ QT +=                                                                           
 # Set compiler to use C++17 to make std::filesystem available                                   #
 #-----------------------------------------------------------------------------------------------#
 CONFIG +=   c++17                                                                               \
+            lrelease                                                                            \
+            embed_translations                                                                  \
             silent                                                                              \
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
