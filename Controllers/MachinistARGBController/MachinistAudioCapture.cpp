@@ -100,6 +100,9 @@ bool MachinistAudioCapture::Initialize()
     ss.rate = 44100;           // 44.1kHz sample rate
 
     int error = 0;
+    pa_buffer_attr buffer_attr = {};
+    buffer_attr.fragsize = sizeof(float) * 512;
+    buffer_attr.maxlength = buffer_attr.fragsize * 2;
 
     // Monitor sources capture what's being played (loopback), not the mic.
     // Try the machine's actual default sink monitor first, then a few
@@ -127,7 +130,7 @@ bool MachinistAudioCapture::Initialize()
             "Music mode capture",                   // Stream description
             &ss,                                    // Sample specification
             nullptr,                                // Channel map (default)
-            nullptr,                                // Attributes
+            &buffer_attr,                           // Attributes
             &error
         );
 
@@ -363,7 +366,12 @@ void MachinistAudioCapture::CaptureThreadFunc(std::shared_ptr<SharedState> state
         // Read audio samples from PulseAudio
         if (pa_simple_read(state->pa_handle, sample_buffer, sizeof(sample_buffer), &error) < 0)
         {
-            continue;  // Skip on error, keep running
+            for (int i = 0; i < 3; i++)
+            {
+                state->fft_bins[i] = 0;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            continue;
         }
 
         // Real USB capture analysis (machinist_music_option.pcapng, 574 samples)
