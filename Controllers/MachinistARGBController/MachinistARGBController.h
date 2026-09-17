@@ -45,13 +45,11 @@ public:
     void        SendRainbowWave(unsigned char red, unsigned char green, unsigned char blue, unsigned char speed, unsigned char brightness);
     void        SendSpectrumCycle(unsigned char red, unsigned char green, unsigned char blue, unsigned char speed, unsigned char brightness);
     void        SendRainbow(unsigned char red, unsigned char green, unsigned char blue, unsigned char speed, unsigned char brightness);
-    void        SendRandom(unsigned char red, unsigned char green, unsigned char blue, unsigned char speed, unsigned char brightness);
     void        SendSpring(unsigned char red, unsigned char green, unsigned char blue, unsigned char speed, unsigned char brightness);
     void        SendWater(unsigned char red, unsigned char green, unsigned char blue, unsigned char speed, unsigned char brightness);
     void        SendMusic(unsigned char red, unsigned char green, unsigned char blue, unsigned char brightness);
     void        StartMusicMode(unsigned char red, unsigned char green, unsigned char blue, unsigned char brightness);
     void        StopMusicMode();
-    void        UpdateMusicMode(unsigned char red, unsigned char green, unsigned char blue, unsigned char brightness);
 
 private:
     void        SendAnimatedEffect(unsigned char effect_id, unsigned char red, unsigned char green, unsigned char blue, unsigned char speed, unsigned char brightness);

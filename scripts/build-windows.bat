@@ -51,12 +51,7 @@ goto bits_done
 ::---------------------------------------------------------::
 :: Run vcvarsall                                           ::
 ::---------------------------------------------------------::
-@for /f "usebackq delims=" %%i in (`"C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -find VC\Auxiliary\Build\vcvarsall.bat`) do @call "%%i" %MSVC_ARCH%
-
-IF %ERRORLEVEL% NEQ 0 (
-    ECHO Could not find the Visual Studio C++ build tools.
-    EXIT /B %ERRORLEVEL%
-)
+@call "C:\Program Files (x86)\Microsoft Visual Studio\%MSVC_VER%\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" %MSVC_ARCH%
 
 ::---------------------------------------------------------::
 :: Run qmake to configure the build                        ::
