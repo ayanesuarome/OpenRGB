@@ -24,8 +24,6 @@
 
 #define MACHINIST_VID 0x0416
 #define MACHINIST_PID 0x0125
-#define MACHINIST_USAGE_PAGE 0xFF00
-#define MACHINIST_USAGE      0x0001
 
 /*---------------------------------------------------------*\
 | Low-level USB HID driver for Machinist ARGB controller    |

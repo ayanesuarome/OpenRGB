@@ -33,12 +33,16 @@ DetectedControllers DetectMachinistARGBControllers(hidapi_wrapper wrapper, hid_d
 }
 
 /*-----------------------------------------------------------------*\
-| HID usage values differ between the Linux and Windows backends.   |
-| Use the wrapped detector so the device is opened through the      |
-| same backend that enumerated it.                                  |
+| This dongle is probed through two separate HID backends on       |
+| Linux (plain hidraw and libusb). The plain hidraw enumeration is  |
+| unreliable for this device (it intermittently fails to enumerate |
+| it at all), so detection must rely on the libusb backend, which  |
+| consistently reports usage_page=0x0000 usage=0x0000 interface=0  |
+| for this device. On Windows the (only) backend reports           |
+| usage_page=0x0001 usage=0x0000 interface=0.                      |
 \*-----------------------------------------------------------------*/
 #ifdef _WIN32
 REGISTER_HID_WRAPPED_DETECTOR_IPU("Machinist F-X9D ARGB", DetectMachinistARGBControllers, MACHINIST_VID, MACHINIST_PID, 0, 0x0001, 0x0000);
 #else
-REGISTER_HID_WRAPPED_DETECTOR_PU("Machinist F-X9D ARGB", DetectMachinistARGBControllers, MACHINIST_VID, MACHINIST_PID, MACHINIST_USAGE_PAGE, MACHINIST_USAGE);
+REGISTER_HID_WRAPPED_DETECTOR_IPU("Machinist F-X9D ARGB", DetectMachinistARGBControllers, MACHINIST_VID, MACHINIST_PID, 0, 0x0000, 0x0000);
 #endif
