@@ -3,18 +3,15 @@
 |                                                           |
 |   Driver for MACHINIST F-X9D ARGB Controller              |
 |                                                           |
-|   OpenRGB Team                                            |
+|   Ayane Suarez                                04 Sep 2026 |
 |                                                           |
 |   This file is part of the OpenRGB project                |
 |   SPDX-License-Identifier: GPL-2.0-or-later               |
 \*---------------------------------------------------------*/
 
-#ifndef MACHINISTARGBCONTROLLER_H
-#define MACHINISTARGBCONTROLLER_H
+#pragma once
 
 #include <string>
-#include <vector>
-#include <memory>
 #include <atomic>
 #include <thread>
 #include <mutex>
@@ -51,22 +48,20 @@ public:
 
 private:
     void        SendAnimatedEffect(unsigned char effect_id, unsigned char red, unsigned char green, unsigned char blue, unsigned char speed, unsigned char brightness);
-    void        SendMusicWithAudio(unsigned char channel, const std::array<uint8_t, 3>& fft_bins);
+    void        SendMusicWithAudio(unsigned char channel, unsigned char* fft_bins);
+    void        MusicUpdateThreadFunction();
 
-    hidapi_wrapper wrapper;
-    hid_device* dev;
-    std::string location;
-    std::string serial;
-    std::unique_ptr<MachinistAudioCapture> audio_capture;
-    std::thread music_update_thread;
-    std::atomic<bool> music_mode_active;
+    hidapi_wrapper          wrapper;
+    hid_device*             dev;
+    std::string             location;
+    std::string             serial;
+    MachinistAudioCapture*  audio_capture;
+    std::thread             music_update_thread;
+    std::atomic<bool>       music_mode_active;
 
-    /*---------------------------------------------------------*\
-    | DeviceUpdateLEDs() can be called concurrently from       |
-    | multiple threads; serialize access to shared Music-mode  |
-    | state to avoid races and deadlocks.                      |
-    \*---------------------------------------------------------*/
-    std::mutex music_mode_mutex;
+    /*-----------------------------------------------------*\
+    | DeviceUpdateLEDs() may be called from multiple        |
+    | threads, serialize Music mode start and stop          |
+    \*-----------------------------------------------------*/
+    std::mutex              music_mode_mutex;
 };
-
-#endif // MACHINISTARGBCONTROLLER_H

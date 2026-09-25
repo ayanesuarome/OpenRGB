@@ -3,14 +3,13 @@
 |                                                           |
 |   RGBController for MACHINIST F-X9D ARGB Controller       |
 |                                                           |
-|   OpenRGB Team                                            |
+|   Ayane Suarez                                04 Sep 2026 |
 |                                                           |
 |   This file is part of the OpenRGB project                |
 |   SPDX-License-Identifier: GPL-2.0-or-later               |
 \*---------------------------------------------------------*/
 
-#ifndef RGBCONTROLLER_MACHINISTARGB_H
-#define RGBCONTROLLER_MACHINISTARGB_H
+#pragma once
 
 #include "RGBController.h"
 #include "MachinistARGBController.h"
@@ -30,13 +29,6 @@ public:
     void        DeviceUpdateMode() override;
 
 private:
-    MachinistARGBController* controller;
-
-    /*---------------------------------------------------------*\
-    | Track previous mode to detect transitions away from      |
-    | Music mode and stop background audio updates cleanly.    |
-    \*---------------------------------------------------------*/
-    int previous_mode = -1;
+    MachinistARGBController*    controller;
+    int                         previous_mode;
 };
-
-#endif // RGBCONTROLLER_MACHINISTARGB_H

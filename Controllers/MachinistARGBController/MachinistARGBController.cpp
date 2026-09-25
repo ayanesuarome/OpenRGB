@@ -3,24 +3,25 @@
 |                                                           |
 |   Driver for MACHINIST F-X9D ARGB Controller              |
 |                                                           |
-|   OpenRGB Team                                            |
+|   Ayane Suarez                                04 Sep 2026 |
 |                                                           |
 |   This file is part of the OpenRGB project                |
 |   SPDX-License-Identifier: GPL-2.0-or-later               |
 \*---------------------------------------------------------*/
 
-#include "MachinistARGBController.h"
+#include <chrono>
 #include <cstring>
-#include <vector>
+#include "MachinistARGBController.h"
 #include "LogManager.h"
 #include "StringUtils.h"
 
 MachinistARGBController::MachinistARGBController(hidapi_wrapper hid_wrapper, hid_device* dev_handle, const std::string& path)
-    : music_mode_active(false)
 {
-    wrapper     = hid_wrapper;
-    dev         = dev_handle;
-    location    = path;
+    wrapper             = hid_wrapper;
+    dev                 = dev_handle;
+    location            = path;
+    audio_capture       = nullptr;
+    music_mode_active   = false;
 
     wchar_t serial_string[256];
     int ret = wrapper.hid_get_serial_number_string(dev, serial_string, 256);
@@ -36,11 +37,7 @@ MachinistARGBController::MachinistARGBController(hidapi_wrapper hid_wrapper, hid
 
 MachinistARGBController::~MachinistARGBController()
 {
-    // Stop music mode if it's running
-    if (music_mode_active)
-    {
-        StopMusicMode();
-    }
+    StopMusicMode();
 
     if(dev)
     {
@@ -99,7 +96,7 @@ void MachinistARGBController::SendColor(unsigned char red, unsigned char green, 
 
     /*-----------------------------------------------------*\
     | Verified from USB capture: Report 0x03, subcommand    |
-    | 0x11, RGB order, sent once per channel (1 and 2)       |
+    | 0x11, RGB order, sent once per channel (1 and 2)      |
     \*-----------------------------------------------------*/
     for(unsigned char channel = 0x01; channel <= 0x02; channel++)
     {
@@ -160,114 +157,70 @@ void MachinistARGBController::SendMusic(unsigned char red, unsigned char green, 
 
 void MachinistARGBController::StartMusicMode(unsigned char red, unsigned char green, unsigned char blue, unsigned char brightness)
 {
-    /*
-     * Start audio-reactive music mode
-     * 1. Initialize audio capture from system audio
-     * 2. Start thread for periodic FFT data transmission via 0xC0 protocol
-     * 3. LED color set to given parameters
-     */
-
-    // DeviceUpdateLEDs() can be invoked concurrently (e.g. by a background
-    // refresh thread), so serialize access to avoid racing on audio_capture
-    // and music_update_thread, which could otherwise self-deadlock.
     std::lock_guard<std::mutex> lock(music_mode_mutex);
 
-    if (music_mode_active)
+    if(music_mode_active)
     {
         return;
     }
 
-    if (!audio_capture)
+    if(audio_capture == nullptr)
     {
-        audio_capture = std::make_unique<MachinistAudioCapture>();
-        if (!audio_capture->Initialize())
+        audio_capture = new MachinistAudioCapture();
+
+        if(!audio_capture->Initialize())
         {
             LOG_DEBUG("[MachinistARGB] Audio capture initialization failed, using static Music mode");
-            // Fallback to static music mode if audio capture fails
+            delete audio_capture;
+            audio_capture = nullptr;
             SendMusic(red, green, blue, brightness);
-            audio_capture.reset();
             return;
         }
+
         LOG_DEBUG("[MachinistARGB] Audio capture initialized successfully");
     }
 
-    // Arm the device's Music effect (0x16) the same way every other effect is
-    // selected. The USB capture used to reverse-engineer 0xC0 started recording
-    // after Music mode was already active on the vendor app, so this initial
-    // packet never showed up there - but without it the firmware ignores the
-    // 0xC0 audio stream entirely (confirmed: matches the vendor app's behavior
-    // of flashing blue when Music is selected).
+    /*-----------------------------------------------------*\
+    | The firmware ignores the 0xC0 audio stream unless the |
+    | Music effect (0x16) has been selected first           |
+    \*-----------------------------------------------------*/
     SendMusic(red, green, blue, brightness);
 
-    music_mode_active = true;
-
-    // Lambda for music update thread
-    // Captures this pointer and parameters by value to avoid dangling references
-    auto music_update_func = [this, red, green, blue, brightness]() {
-        unsigned char channel = 0x01;
-
-        while (music_mode_active && audio_capture)
-        {
-            try
-            {
-                // Get current FFT bins from audio capture
-                auto fft_bins = audio_capture->GetFFTBins();
-
-                // Send to device via 0xC0 protocol
-                SendMusicWithAudio(channel, fft_bins);
-
-                // Alternate channel for next transmission
-                channel = (channel == 0x01) ? 0x02 : 0x01;
-            }
-            catch (const std::exception& e)
-            {
-                LOG_DEBUG("[MachinistARGB] Music thread exception: %s", e.what());
-                break;
-            }
-
-            // Update frequency: ~100-150ms per channel pair
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
-
-        LOG_DEBUG("[MachinistARGB] Music mode thread exiting");
-    };
-
-    // Stop old thread if it exists
-    if (music_update_thread.joinable())
+    if(music_update_thread.joinable())
     {
-        try
-        {
-            music_update_thread.join();
-        }
-        catch (const std::exception& e)
-        {
-            LOG_DEBUG("[MachinistARGB] Error joining old music thread: %s", e.what());
-        }
+        music_update_thread.join();
     }
 
-    // Start the music update thread
-    try
+    music_mode_active   = true;
+    music_update_thread = std::thread(&MachinistARGBController::MusicUpdateThreadFunction, this);
+
+    LOG_DEBUG("[MachinistARGB] Music mode thread started");
+}
+
+void MachinistARGBController::MusicUpdateThreadFunction()
+{
+    unsigned char channel = 0x01;
+    unsigned char fft_bins[3];
+
+    while(music_mode_active && audio_capture != nullptr)
     {
-        music_update_thread = std::thread(music_update_func);
-        LOG_DEBUG("[MachinistARGB] Music mode thread started successfully");
+        audio_capture->GetFFTBins(fft_bins);
+
+        SendMusicWithAudio(channel, fft_bins);
+
+        channel = (channel == 0x01) ? 0x02 : 0x01;
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
-    catch (const std::exception& e)
-    {
-        LOG_DEBUG("[MachinistARGB] Failed to start music thread: %s", e.what());
-        music_mode_active = false;
-        if (audio_capture)
-        {
-            audio_capture->Stop();
-            audio_capture.reset();
-        }
-    }
+
+    LOG_DEBUG("[MachinistARGB] Music mode thread exiting");
 }
 
 void MachinistARGBController::StopMusicMode()
 {
     std::lock_guard<std::mutex> lock(music_mode_mutex);
 
-    if (!music_mode_active)
+    if(!music_mode_active)
     {
         return;
     }
@@ -276,60 +229,47 @@ void MachinistARGBController::StopMusicMode()
 
     music_mode_active = false;
 
-    if (music_update_thread.joinable())
+    if(music_update_thread.joinable())
     {
-        try
-        {
-            music_update_thread.join();
-            LOG_DEBUG("[MachinistARGB] Music thread joined successfully");
-        }
-        catch (const std::exception& e)
-        {
-            LOG_DEBUG("[MachinistARGB] Error joining music thread: %s", e.what());
-        }
+        music_update_thread.join();
     }
 
-    if (audio_capture)
+    if(audio_capture != nullptr)
     {
         audio_capture->Stop();
-        audio_capture.reset();
-        LOG_DEBUG("[MachinistARGB] Audio capture stopped and cleaned up");
+        delete audio_capture;
+        audio_capture = nullptr;
     }
 }
 
-void MachinistARGBController::SendMusicWithAudio(unsigned char channel, const std::array<uint8_t, 3>& fft_bins)
+void MachinistARGBController::SendMusicWithAudio(unsigned char channel, unsigned char* fft_bins)
 {
-    /*
-     * Send audio-reactive data via 0xC0 protocol
-     *
-     * Verified byte-for-byte against USB capture (machinist_music_option.pcapng):
-     * every 0xC0 frame observed is exactly 8 bytes, e.g. 01 c0 01 4a 4a 49 01 00
-     *
-     * Packet structure:
-     * [0] = 0x01           Report ID (different from normal 0x03)
-     * [1] = 0xC0           Audio-reactive command ID
-     * [2] = 0x01 or 0x02   Channel (alternate each packet)
-     * [3] = FFT_BIN_0      Bass frequencies (0x00-0xFF)
-     * [4] = FFT_BIN_1      Mid frequencies (0x00-0xFF)
-     * [5] = FFT_BIN_2      Treble frequencies (0x00-0xFF)
-     * [6] = 0x01           Fixed parameter
-     * [7] = 0x00           Fixed parameter
-     */
-
-    if (dev == nullptr || !audio_capture)
+    if(dev == nullptr)
+    {
         return;
+    }
 
+    /*-----------------------------------------------------*\
+    | Music mode audio packet (8 bytes, verified from USB   |
+    | capture), channel alternates between 0x01 and 0x02    |
+    |   [0]     0x01 Report ID                              |
+    |   [1]     0xC0 Audio command                          |
+    |   [2]     Channel                                     |
+    |   [3-5]   Audio level bytes (0x00-0xFF)               |
+    |   [6]     0x01                                        |
+    |   [7]     0x00                                        |
+    \*-----------------------------------------------------*/
     unsigned char buf[8];
     memset(buf, 0, sizeof(buf));
 
-    buf[0] = 0x01;              // Report ID (0x01 for audio command)
-    buf[1] = 0xC0;              // Audio-reactive command
-    buf[2] = channel;           // Channel (0x01 or 0x02)
-    buf[3] = fft_bins[0];       // Bass
-    buf[4] = fft_bins[1];       // Midrange
-    buf[5] = fft_bins[2];       // Treble
-    buf[6] = 0x01;              // Fixed parameter
-    buf[7] = 0x00;              // Fixed parameter
+    buf[0] = 0x01;
+    buf[1] = 0xC0;
+    buf[2] = channel;
+    buf[3] = fft_bins[0];
+    buf[4] = fft_bins[1];
+    buf[5] = fft_bins[2];
+    buf[6] = 0x01;
+    buf[7] = 0x00;
 
     int res = wrapper.hid_write(dev, buf, sizeof(buf));
     if(res < 0)

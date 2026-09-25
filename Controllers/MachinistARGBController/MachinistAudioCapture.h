@@ -3,23 +3,17 @@
 |                                                           |
 |   Audio capture helper for MACHINIST Music mode           |
 |                                                           |
-|   OpenRGB Team                                            |
+|   Ayane Suarez                                04 Sep 2026 |
 |                                                           |
 |   This file is part of the OpenRGB project                |
 |   SPDX-License-Identifier: GPL-2.0-or-later               |
 \*---------------------------------------------------------*/
 
-#ifndef MACHINISTAUDIOCAPTURE_H
-#define MACHINISTAUDIOCAPTURE_H
-
-#include <array>
-#include <cstdint>
+#pragma once
 
 #ifdef MACHINIST_MUSIC_AUDIO_ENABLED
 
-#include <thread>
 #include <atomic>
-#include <vector>
 #include <memory>
 #ifdef _WIN32
 #include <condition_variable>
@@ -41,60 +35,59 @@ public:
 
     bool Initialize();
     void Stop();
-    std::array<uint8_t, 3> GetFFTBins() const;
+    void GetFFTBins(unsigned char* bins) const;
 
 private:
-    // pa_simple_read() blocks indefinitely if the monitor source is idle/suspended.
-    // State is heap-allocated and shared with the detached capture thread so Stop()
-    // never has to join a thread that might be stuck in that blocking call.
+    /*-----------------------------------------------------*\
+    | pa_simple_read() can block indefinitely on an idle    |
+    | source, so the capture thread is detached and shares  |
+    | ownership of this state instead of being joined       |
+    \*-----------------------------------------------------*/
     struct SharedState
     {
-        std::atomic<bool>              running{false};
-    #ifdef _WIN32
-        std::mutex                     initialization_mutex;
-        std::condition_variable        initialization_condition;
-        bool                           initialization_complete = false;
-        bool                           initialization_successful = false;
-    #else
-        pa_simple*                     pa_handle = nullptr;
+        std::atomic<bool>           running;
+        std::atomic<unsigned char>  fft_bins[3];
+#ifdef _WIN32
+        std::mutex                  initialization_mutex;
+        std::condition_variable     initialization_condition;
+        bool                        initialization_complete;
+        bool                        initialization_successful;
+#else
+        pa_simple*                  pa_handle;
 #endif
-        std::array<std::atomic<uint8_t>, 3> fft_bins{};
     };
 
     static void CaptureThreadFunc(std::shared_ptr<SharedState> state);
+#ifdef _WIN32
+    static void FinishInitialization(SharedState* state, bool successful);
+#endif
 
     std::shared_ptr<SharedState> state;
 };
 
 #else
 
-// Stub implementation when audio is not available
+/*---------------------------------------------------------*\
+| Stub used when audio capture support is not built in      |
+\*---------------------------------------------------------*/
 class MachinistAudioCapture
 {
 public:
-    MachinistAudioCapture()
-    {
-    }
-
-    ~MachinistAudioCapture()
-    {
-    }
-
     bool Initialize()
     {
-        return false;
+        return(false);
     }
 
     void Stop()
     {
     }
 
-    std::array<uint8_t, 3> GetFFTBins() const
+    void GetFFTBins(unsigned char* bins) const
     {
-        return {0, 0, 0};
+        bins[0] = 0;
+        bins[1] = 0;
+        bins[2] = 0;
     }
 };
 
-#endif  // MACHINIST_MUSIC_AUDIO_ENABLED
-
-#endif // MACHINISTAUDIOCAPTURE_H
+#endif
